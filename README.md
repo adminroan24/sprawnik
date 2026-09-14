@@ -50,9 +50,9 @@ docker compose up
 ## Dokumentacja
 
 - [Cel i założenia](docs/01-cel-i-zalozenia.md)
-- [Przypadki użycia](docs/02-przypadki-uzycia.md)
-- [Model danych](docs/03-model-danych.md)
-- [Architektura](docs/04-architektura.md)
+- Przypadki użycia — w przygotowaniu
+- Model danych — w przygotowaniu
+- Architektura — w przygotowaniu
 
 ## Charakter projektu
 
