@@ -43,9 +43,27 @@ panel statystyk, eksport kompletnych akt.
 
 ## Uruchomienie
 
+Wymagania: Node.js 20+, Docker z wtyczką Compose.
+
 ```bash
-docker compose up
+cp .env.example .env          # uzupełnij wartości
+docker compose up -d db       # PostgreSQL na porcie 5435
+
+cd backend && npm install && npm run dev     # API na porcie 3100
+cd frontend && npm install && npm run dev    # interfejs na porcie 5180
 ```
+
+Sprawdzenie stanu systemu: [http://127.0.0.1:5180](http://127.0.0.1:5180) —
+strona startowa odpytuje `/api/health` i pokazuje stan API oraz połączenia z bazą.
+
+| Składnik | Port |
+|----------|------|
+| Interfejs (Vite) | 5180 |
+| API (Express) | 3100 |
+| PostgreSQL | 5435 |
+
+Porty odbiegają od domyślnych (5173, 3000, 5432), ponieważ domyślne bywają zajęte
+w środowisku lokalnym.
 
 ## Dokumentacja
 
