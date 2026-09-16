@@ -10,3 +10,6 @@ uploads/
 
 # Notatki robocze — nie trafiają do publicznego repozytorium
 notatki/
+
+# Dokument generowany ze źródeł w docs/dokumentacja
+build/
