@@ -1,0 +1,122 @@
+@startuml model-danych
+' Diagram ERD systemu Sprawnik — notacja Information Engineering (crow's foot)
+hide circle
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam defaultFontName Sans
+skinparam defaultFontSize 11
+skinparam class {
+  BackgroundColor #FEFEFE
+  BorderColor #444444
+  ArrowColor #444444
+}
+
+entity "uzytkownik" as uzytkownik {
+  * id : bigserial <<PK>>
+  --
+  * email : text <<UQ>>
+  * haslo_hash : text
+  * imie_nazwisko : text
+  * rola : rola_uzytkownika
+  * aktywny : boolean
+  * utworzono : timestamptz
+}
+
+entity "sprawa" as sprawa {
+  * id : bigserial <<PK>>
+  --
+  * uzytkownik_id : bigint <<FK>>
+  * tytul : text
+  znak_wlasny : text
+  organ : text
+  * status : status_sprawy
+  data_wszczecia : date
+  opis : text
+  * utworzono : timestamptz
+}
+
+entity "pismo" as pismo {
+  * id : bigserial <<PK>>
+  --
+  * sprawa_id : bigint <<FK>>
+  * kierunek : kierunek_pisma
+  * rodzaj : text
+  * korespondent : text
+  znak_pisma : text
+  data_nadania : date
+  data_doreczenia : date
+  opis : text
+  * utworzono : timestamptz
+}
+
+entity "dokument" as dokument {
+  * id : bigserial <<PK>>
+  --
+  * pismo_id : bigint <<FK>>
+  * dodal_uzytkownik_id : bigint <<FK>>
+  * nazwa_oryginalna : text
+  * nazwa_w_magazynie : text <<UQ>>
+  * typ_mime : text
+  * rozmiar_bajtow : bigint
+  suma_kontrolna : text
+  * dodano : timestamptz
+}
+
+entity "regula_terminu" as regula {
+  * id : bigserial <<PK>>
+  --
+  * nazwa : text <<UQ>>
+  * liczba_dni : integer
+  * sposob_liczenia : sposob_liczenia
+  * zdarzenie_poczatkowe : zdarzenie_poczatkowe
+  * przesuwaj_dni_wolne : boolean
+  opis : text
+  * aktywna : boolean
+  * utworzono : timestamptz
+}
+
+entity "termin" as termin {
+  * id : bigserial <<PK>>
+  --
+  * sprawa_id : bigint <<FK>>
+  pismo_id : bigint <<FK>>
+  regula_id : bigint <<FK>>
+  * czynnosc : text
+  * data_poczatkowa : date
+  * data_uplywu : date
+  * sposob_wyznaczenia : sposob_wyznaczenia
+  * status : status_terminu
+  data_wykonania : date
+  * utworzono : timestamptz
+}
+
+entity "dzien_wolny" as dzien {
+  * data : date <<PK>>
+  --
+  * nazwa : text
+}
+
+uzytkownik ||--o{ sprawa      : prowadzi
+uzytkownik ||--o{ dokument    : dodaje
+sprawa     ||--o{ pismo       : zawiera
+sprawa     ||--o{ termin      : ma
+pismo      ||--o{ dokument    : ma_zalaczone
+pismo      ||--o{ termin      : jest_podstawa
+regula     ||--o{ termin      : wyznacza
+
+note bottom of dzien
+  Kalendarz dni ustawowo wolnych.
+  Bez niego „dni robocze" i przesunięcie
+  terminu z dnia wolnego są niedefiniowalne.
+  Tabela bez relacji — czytana przy
+  wyznaczaniu terminu.
+end note
+
+note bottom of termin
+  Stany „zbliżający się" i „przekroczony"
+  nie są przechowywane. Wynikają z porównania
+  data_uplywu z datą bieżącą — zapisane
+  zdezaktualizowałyby się nazajutrz.
+end note
+
+@enduml
