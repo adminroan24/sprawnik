@@ -105,9 +105,10 @@ pismo      ||--o{ termin      : jest_podstawa
 regula     ||--o{ termin      : wyznacza
 
 note bottom of dzien
-  Kalendarz dni ustawowo wolnych.
-  Bez niego „dni robocze" i przesunięcie
-  terminu z dnia wolnego są niedefiniowalne.
+  Kalendarz dni ustawowo wolnych,
+  w tym ruchomych, zależnych od Wielkanocy.
+  Soboty i niedziele nie są zapisywane —
+  wynikają z samej daty.
   Tabela bez relacji — czytana przy
   wyznaczaniu terminu.
 end note

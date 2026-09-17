@@ -84,7 +84,9 @@ polega na zastosowaniu reguły do daty doręczenia:
 2. Przyjęcie daty doręczenia jako punktu początkowego.
 3. Dodanie liczby dni zgodnie ze sposobem liczenia zapisanym w regule
    (dni kalendarzowe albo robocze).
-4. Przesunięcie terminu przypadającego na dzień wolny na najbliższy dzień roboczy.
+4. Przesunięcie terminu przypadającego na dzień wolny na najbliższy dzień
+   roboczy — krokami naprzód, aż do dnia, który nie jest ani sobotą, ani
+   niedzielą, ani dniem ustawowo wolnym.
 5. Zapisanie terminu wraz z odniesieniem do pisma i reguły, na podstawie
    których powstał.
 
@@ -155,6 +157,12 @@ oraz „przesunięcie terminu z dnia wolnego" nie dają się zdefiniować.
 `dzien_wolny` nie wchodzi w relacje z pozostałymi tabelami — jest czytana
 w trakcie wyznaczania terminu.
 
+Tabela przechowuje wyłącznie dni ustawowo wolne. Soboty i niedziele wynikają
+z samej daty i nie są w niej zapisywane — przechowywanie ich byłoby
+powielaniem informacji, którą data już niesie. Rozróżnienie to ma znaczenie
+praktyczne, ponieważ część dni ustawowo wolnych jest ruchoma i zależy od daty
+Wielkanocy, więc musi zostać wprowadzona do systemu jako dane.
+
 **Dokument należy do pisma, a przez nie do sprawy.** Rozważono przypisanie
 dokumentu bezpośrednio do sprawy, co pozwoliłoby przechowywać pliki niezwiązane
 z żadną przesyłką. Odrzucono je, ponieważ rozmywałoby odpowiedź na pytanie,
@@ -164,6 +172,34 @@ oraz suma kontrolna, co pozwala wykryć podmianę pliku.
 **Chronologia sprawy nie ma własnej tabeli.** Powstaje jako zapytanie łączące
 pisma, terminy i dokumenty jednej sprawy, uporządkowane datą. Osobna tabela
 zdarzeń dublowałaby dane już zapisane i wymagałaby utrzymywania ich w zgodzie.
+
+### Termin przypadający na dzień wolny
+
+Termin wyznaczony na sobotę, niedzielę lub dzień ustawowo wolny od pracy
+przesuwa się na najbliższy następny dzień roboczy. Przesunięcie dotyczy
+wyłącznie dnia końcowego — nie zmienia liczby dni zapisanej w regule ani
+sposobu ich liczenia.
+
+Istotne jest, że przesunięcie wykonuje się **powtarzalnie, aż do skutku**.
+Pojedynczy krok naprzód nie wystarcza, ponieważ dzień następujący po dniu
+wolnym bywa również wolny:
+
+| Wyliczona data upływu | Dlaczego jest wolna | Termin ostateczny |
+|------------------------|---------------------|-------------------|
+| sobota | dzień tygodnia | poniedziałek |
+| niedziela | dzień tygodnia | poniedziałek |
+| 3 maja (środa) | dzień ustawowo wolny | czwartek 4 maja |
+| Wielki Piątek | dzień ustawowo wolny, po nim sobota, niedziela i Poniedziałek Wielkanocny | wtorek po Wielkanocy |
+| 25 grudnia | dzień ustawowo wolny, po nim 26 grudnia również | 27 grudnia albo pierwszy dzień roboczy po nim |
+
+Ostatni wiersz pokazuje, dlaczego zachowanie trzeba zapisać jako pętlę, a nie
+jako przesunięcie o jeden dzień: między datą wyliczoną a terminem ostatecznym
+potrafi leżeć kilka dni wolnych z rzędu.
+
+Zachowanie to sterowane jest kolumną `regula_terminu.przesuwaj_dni_wolne`.
+Pozostaje konfigurowalne dla każdej reguły z osobna, ponieważ nie każdy termin
+umowny musi mu podlegać, natomiast dla reguł odwzorowujących terminy ustawowe
+przyjmuje wartość prawdziwą.
 
 ### Typy wyliczeniowe i ograniczenia
 
