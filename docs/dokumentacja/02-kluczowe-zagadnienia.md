@@ -103,7 +103,88 @@ jego prezentacji użytkownikowi (UC8).
 
 ## 2.2. Model danych
 
-<!-- Do napisania 17.09 — wraz z diagramem ERD. -->
+Model obejmuje siedem tabel. Cztery odwzorowują przedmiot pracy (sprawa, pismo,
+dokument, termin), jedna użytkowników, a dwie stanowią konfigurację mechanizmu
+wyznaczania terminów (reguła terminu, kalendarz dni wolnych).
+
+| Tabela | Rola w systemie |
+|--------|-----------------|
+| `uzytkownik` | Konta i role. Rozróżnienie użytkownika od administratora decyduje o dostępie do reguł terminów i zarządzania kontami. |
+| `sprawa` | Jednostka nadrzędna. Grupuje korespondencję, dokumenty i terminy jednego postępowania. |
+| `pismo` | Pojedyncza przesyłka przychodząca lub wychodząca. Nośnik dat, od których liczą się terminy. |
+| `dokument` | Plik załączony do pisma wraz z metadanymi pozwalającymi zweryfikować jego tożsamość. |
+| `regula_terminu` | Konfiguracja sposobu wyznaczania terminu. Dane, nie kod. |
+| `termin` | Wyznaczony termin wraz ze śladem pochodzenia. |
+| `dzien_wolny` | Kalendarz dni ustawowo wolnych, wykorzystywany przy liczeniu dni roboczych. |
+
+![](../diagramy/model-danych.png)
+
+*Rys. 2. Diagram związków encji (notacja Information Engineering).*
+
+### Decyzje projektowe
+
+**Data nadania i data doręczenia są osobnymi polami, a doręczenie może
+pozostać nieznane.** To odwzorowanie głównego założenia projektu. Kolumna
+`pismo.data_doreczenia` dopuszcza wartość pustą — pismo bywa zarejestrowane,
+zanim potwierdzenie odbioru dotrze do prowadzącego sprawę. Dopóki pozostaje
+pusta, termin nie powstaje. Alternatywą byłoby liczenie od daty nadania, ale
+dawałoby to wynik systematycznie zaniżony, czyli błędny w sposób niebezpieczny
+dla użytkownika.
+
+**Reguła terminu jest wierszem w tabeli, nie gałęzią w kodzie.** Tabela
+`regula_terminu` opisuje termin czterema cechami: liczbą dni, sposobem ich
+liczenia, zdarzeniem początkowym oraz tym, czy termin przypadający na dzień
+wolny przesuwa się na najbliższy roboczy. Dodanie nowej reguły jest operacją
+na danych i nie wymaga zmiany aplikacji ani jej ponownego wdrożenia.
+
+**Termin przechowuje ślad swojego pochodzenia.** Oprócz daty upływu zapisywane
+są: pismo będące podstawą (`pismo_id`), zastosowana reguła (`regula_id`) oraz
+data przyjęta za początek biegu (`data_poczatkowa`). Dzięki temu każde
+wyliczenie można odtworzyć i sprawdzić, zamiast przyjmować wynik na wiarę.
+Przy terminie wprowadzonym ręcznie oba odniesienia pozostają puste, a kolumna
+`sposob_wyznaczenia` odróżnia go od wyznaczonego automatycznie.
+
+**Stany „zbliżający się" i „przekroczony" nie są przechowywane.** Wynikają
+z porównania `data_uplywu` z datą bieżącą i konfigurowalnym progiem ostrzegania.
+Zapisane w bazie dezaktualizowałyby się nazajutrz i wymagałyby cyklicznego
+przeliczania całej tabeli. Przechowywany jest wyłącznie `status` opisujący
+decyzję użytkownika: termin otwarty, wykonany albo anulowany.
+
+**Kalendarz dni wolnych jest osobną tabelą.** Bez niej pojęcia „dni robocze"
+oraz „przesunięcie terminu z dnia wolnego" nie dają się zdefiniować.
+`dzien_wolny` nie wchodzi w relacje z pozostałymi tabelami — jest czytana
+w trakcie wyznaczania terminu.
+
+**Dokument należy do pisma, a przez nie do sprawy.** Rozważono przypisanie
+dokumentu bezpośrednio do sprawy, co pozwoliłoby przechowywać pliki niezwiązane
+z żadną przesyłką. Odrzucono je, ponieważ rozmywałoby odpowiedź na pytanie,
+czego dowodzi dany plik. Obok nazwy pierwotnej zapisywana jest nazwa w magazynie
+oraz suma kontrolna, co pozwala wykryć podmianę pliku.
+
+**Chronologia sprawy nie ma własnej tabeli.** Powstaje jako zapytanie łączące
+pisma, terminy i dokumenty jednej sprawy, uporządkowane datą. Osobna tabela
+zdarzeń dublowałaby dane już zapisane i wymagałaby utrzymywania ich w zgodzie.
+
+### Typy wyliczeniowe i ograniczenia
+
+Zbiory wartości zamknięte z natury zapisano jako typy wyliczeniowe PostgreSQL:
+`rola_uzytkownika`, `status_sprawy`, `kierunek_pisma`, `sposob_liczenia`,
+`zdarzenie_poczatkowe`, `sposob_wyznaczenia`, `status_terminu`. Ogranicza to
+zakres dopuszczalnych wartości na poziomie bazy, a nie wyłącznie aplikacji.
+
+Spójność wspierają ograniczenia sprawdzające. Najistotniejsze z nich:
+
+| Ograniczenie | Cel |
+|--------------|-----|
+| `data_doreczenia >= data_nadania` | Doręczenie nie może poprzedzać nadania. |
+| `data_uplywu >= data_poczatkowa` | Termin nie może upływać przed rozpoczęciem biegu. |
+| `liczba_dni > 0` | Reguła musi wyznaczać termin dodatni. |
+| termin automatyczny wymaga `regula_id` i `pismo_id` | Wyliczenie bez podstawy nie jest odtwarzalne. |
+| `data_wykonania` tylko przy statusie `wykonany` | Data wykonania bez wykonania jest sprzeczna. |
+
+Usunięcie sprawy kasuje kaskadowo jej pisma, dokumenty i terminy, ponieważ
+poza sprawą tracą one sens. Usunięcie reguły, do której odwołują się terminy,
+jest blokowane — inaczej znikłaby podstawa wyliczeń już dokonanych.
 
 ## 2.3. Architektura aplikacji
 
