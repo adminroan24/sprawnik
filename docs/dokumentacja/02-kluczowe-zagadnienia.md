@@ -224,7 +224,78 @@ jest blokowane — inaczej znikłaby podstawa wyliczeń już dokonanych.
 
 ## 2.3. Architektura aplikacji
 
-<!-- Do napisania 18.09 — wraz z diagramem komponentów. -->
+System dzieli się na pięć warstw o rozdzielonych zadaniach. Podział przebiega
+zarówno przez granicę procesu (przeglądarka, serwer aplikacji, serwer bazy),
+jak i wewnątrz samej aplikacji serwerowej.
+
+![](../diagramy/architektura.png)
+
+*Rys. 3. Diagram komponentów i zależności między nimi.*
+
+| Warstwa | Zadanie | Nie odpowiada za |
+|---------|---------|------------------|
+| Frontendowa | Prezentacja i obsługa interakcji. Wyłącznie komunikacja z API. | Reguły wyznaczania terminów, dostęp do bazy. |
+| API | Przyjęcie żądania, sprawdzenie uprawnień, walidacja danych wejściowych, zwrócenie odpowiedzi. | Logikę dziedzinową i SQL. |
+| Uwierzytelnianie | Weryfikacja tożsamości i podpisanego tokenu. | Autoryzację operacji dziedzinowych. |
+| Dziedzinowa | Wyznaczanie terminów, rejestr spraw i pism, obsługa dokumentów. | Protokół HTTP i format odpowiedzi. |
+| Dostępu do danych | Pula połączeń i zapytania SQL. | Decyzje o treści danych. |
+
+Zależności biegną wyłącznie w jedną stronę: od warstwy zewnętrznej ku bazie.
+Warstwa dziedzinowa nie zna pojęcia żądania HTTP, a warstwa dostępu do danych
+nie zna reguł terminów. Dzięki temu silnik terminów daje się sprawdzić testem
+bez uruchamiania serwera, a wymiana sposobu prezentacji nie narusza reguł
+wyliczeń.
+
+### Rozdzielenie mechanizmu uwierzytelniania
+
+Uwierzytelnianie stanowi odrębny komponent wywoływany przed obsługą żądania,
+a nie fragment logiki tras. Hasła przechowywane są wyłącznie w postaci skrótu
+z funkcją bcrypt; system nie dysponuje możliwością odtworzenia hasła.
+
+Sesja jest bezstanowa — tożsamość potwierdza podpisany token przekazywany
+w nagłówku żądania. W bazie nie powstaje tabela sesji. Rozwiązanie odciąża bazę
+i upraszcza wdrożenie, ale ma świadomie przyjętą wadę: token pozostaje ważny do
+czasu wygaśnięcia i nie da się go unieważnić pojedynczo bez dodatkowego rejestru
+tokenów odwołanych. Dla systemu o zakresie demonstracyjnym jest to kompromis
+akceptowalny; przy wdrożeniu produkcyjnym wymagałby uzupełnienia.
+
+### Rozdzielenie obsługi dokumentów
+
+Pliki przechowywane są poza bazą danych, na wolumenie systemu plików.
+W bazie pozostają metadane: nazwa pierwotna, nazwa w magazynie, typ, rozmiar
+i suma kontrolna. Rozważono zapis plików w bazie jako dane binarne — odrzucono
+go, ponieważ powiększałby kopie zapasowe bazy o treść skanów i obciążał pulę
+połączeń przesyłaniem dużych obiektów.
+
+Rozdzielenie to wprowadza wymóg spójności między dwoma magazynami: usunięcie
+dokumentu musi objąć zarówno wiersz, jak i plik. Suma kontrolna pozwala wykryć,
+że plik w magazynie przestał odpowiadać opisowi w bazie.
+
+### Odwzorowanie warstw w kodzie
+
+Podział z diagramu odpowiada strukturze katalogów aplikacji serwerowej,
+co pozwala odczytać architekturę wprost z repozytorium:
+
+| Katalog | Warstwa |
+|---------|---------|
+| `backend/src/routes/` | API — trasy REST |
+| `backend/src/middleware/` | uwierzytelnianie, obsługa błędów |
+| `backend/src/services/` | warstwa dziedzinowa, w tym silnik terminów *(w budowie)* |
+| `backend/src/db/` | dostęp do danych |
+| `backend/src/config/` | konfiguracja ze zmiennych środowiskowych |
+| `frontend/src/` | warstwa frontendowa |
+
+Katalogi oznaczone jako będące w budowie powstają wraz z implementacją
+kolejnych funkcji. Pozostałe istnieją w repozytorium w chwili przygotowania
+niniejszego opisu.
+
+### Uruchomienie
+
+Baza danych pracuje w kontenerze opisanym w `docker-compose.yml`, co pozwala
+odtworzyć środowisko jednym poleceniem i uniezależnia projekt od instalacji
+PostgreSQL w systemie. Parametry połączenia, port oraz sekret podpisujący token
+pochodzą ze zmiennych środowiskowych — plik `.env.example` zawiera ich wykaz
+bez wartości rzeczywistych.
 
 ## 2.4. Kluczowe fragmenty implementacji
 

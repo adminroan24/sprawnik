@@ -1,0 +1,75 @@
+@startuml architektura
+' Diagram komponentów systemu Sprawnik i zależności między nimi
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam defaultFontName Sans
+skinparam defaultFontSize 11
+skinparam componentStyle rectangle
+skinparam component {
+  BackgroundColor #FEFEFE
+  BorderColor #444444
+}
+skinparam node {
+  BackgroundColor #FAFAFA
+  BorderColor #444444
+}
+skinparam database {
+  BackgroundColor #FEFEFE
+  BorderColor #444444
+}
+skinparam folder {
+  BackgroundColor #FEFEFE
+  BorderColor #444444
+}
+
+actor "Użytkownik" as U
+
+node "Przeglądarka" {
+  component "Warstwa frontendowa\n(React, TypeScript)" as FE {
+    component "Widoki:\nsprawy, pisma, terminy" as WIDOKI
+    component "Klient REST" as KLIENT
+  }
+}
+
+node "Serwer aplikacji (Node.js)" {
+  component "Warstwa API (Express)" as API {
+    component "Trasy REST\n/api/sprawy, /api/pisma,\n/api/terminy, /api/dokumenty" as TRASY
+    component "Uwierzytelnianie\n(JWT, hasła bcrypt)\nbez stanu sesji w bazie" as AUTH
+    component "Obsługa błędów" as BLEDY
+  }
+
+  component "Warstwa dziedzinowa" as DZIEDZINA {
+    component "Silnik terminów\n(reguła + data doręczenia)" as SILNIK
+    component "Obsługa dokumentów\n(zapis, metadane, pobieranie)" as DOKUMENTY
+    component "Rejestr spraw i pism" as REJESTR
+  }
+
+  component "Warstwa dostępu do danych\n(pula połączeń, zapytania SQL)" as DAO
+}
+
+database "PostgreSQL 17" as DB {
+  component "Dane spraw,\npism i terminów" as TABELE
+  component "Reguły terminów,\nkalendarz dni wolnych" as KONFIG
+}
+
+folder "Magazyn plików\n(wolumen)" as FS
+
+U --> WIDOKI : obsługuje w przeglądarce
+KLIENT --> TRASY : HTTP, JSON\n(token w nagłówku)
+TRASY --> AUTH : weryfikacja tokenu
+TRASY --> DZIEDZINA : wywołanie operacji
+BLEDY <.. TRASY : przechwycenie wyjątku
+AUTH --> DAO : odczyt konta
+SILNIK --> DAO : reguły, dni wolne, zapis terminu
+REJESTR --> DAO : sprawy, pisma
+DOKUMENTY --> DAO : metadane dokumentu
+DOKUMENTY --> FS : zapis i odczyt pliku
+DAO --> DB : SQL
+
+note bottom of FS
+  Pliki poza bazą danych.
+  W bazie pozostają metadane
+  i suma kontrolna.
+end note
+
+@enduml
