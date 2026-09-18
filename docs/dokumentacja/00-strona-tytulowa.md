@@ -1,44 +1,29 @@
-::: {custom-style="TytulSrodek"}
-![](logo-uczelni.png){width=10cm}
-:::
+<!-- Strona tytułowa odwzorowuje układ szablonu uczelnianego akapit po akapicie:
+     Times New Roman, wcięcie 284 twips, odstęp 200 po akapicie, puste akapity
+     budujące odstępy pionowe, blok promotora wcięty o 4956 twips.
+     Logo wstawiane przez pandoca, w rozmiarze odczytanym z szablonu (13,55 x 2,49 cm). -->
 
-::: {custom-style="TytulSrodekMocny"}
-KIERUNEK: INFORMATYKA
-:::
-
-::: {custom-style="TytulSrodek"}
-Roland Piątkowski
-:::
-
-::: {custom-style="TytulSrodek"}
-studia niestacjonarne
-:::
-
-::: {custom-style="TytulSrodek"}
-nr albumu 46653
-:::
-
-::: {custom-style="TytulSrodekMocny"}
-Projekt i implementacja systemu wspomagania zarządzania korespondencją
-i terminami w postępowaniach administracyjnych
-:::
-
-::: {custom-style="TytulSrodek"}
-Dokumentacja do projektu dyplomowego
-:::
-
-::: {custom-style="TytulSrodek"}
-przygotowana pod kierunkiem
-:::
-
-::: {custom-style="TytulSrodek"}
-dra Marcina Kacprowicza
-:::
-
-::: {custom-style="TytulSrodek"}
-Warszawa, 2026
+::: {custom-style="TytulLogo"}
+![](logo-uczelni.png){width=13.55cm height=2.49cm}
 :::
 
 ```{=openxml}
+<w:p><w:pPr><w:spacing w:after="200"/><w:ind w:left="284"/><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="Times New Roman" w:cs="Times New Roman"/><w:b/><w:sz w:val="32"/><w:szCs w:val="32"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="Times New Roman" w:cs="Times New Roman"/><w:b/><w:sz w:val="32"/><w:szCs w:val="32"/></w:rPr><w:t xml:space="preserve">KIERUNEK: INFORMATYKA</w:t></w:r></w:p>
+<w:p><w:pPr><w:spacing w:after="200"/><w:ind w:left="284"/><w:jc w:val="both"/><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="Times New Roman" w:cs="Times New Roman"/></w:rPr></w:pPr></w:p>
+<w:p><w:pPr><w:spacing w:after="200"/><w:ind w:left="284"/><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="Times New Roman" w:cs="Times New Roman"/></w:rPr></w:pPr></w:p>
+<w:p><w:pPr><w:spacing w:after="200"/><w:ind w:left="284"/><w:jc w:val="both"/><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="Times New Roman" w:cs="Times New Roman"/></w:rPr></w:pPr></w:p>
+<w:p><w:pPr><w:spacing w:after="200"/><w:ind w:left="284"/><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="Times New Roman" w:cs="Times New Roman"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="Times New Roman" w:cs="Times New Roman"/></w:rPr><w:t xml:space="preserve">Roland Piątkowski</w:t></w:r></w:p>
+<w:p><w:pPr><w:spacing w:after="200"/><w:ind w:left="284"/><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="Times New Roman" w:cs="Times New Roman"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="Times New Roman" w:cs="Times New Roman"/></w:rPr><w:t xml:space="preserve">studia niestacjonarne</w:t></w:r></w:p>
+<w:p><w:pPr><w:spacing w:after="200"/><w:ind w:left="284"/><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="Times New Roman" w:cs="Times New Roman"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="Times New Roman" w:cs="Times New Roman"/></w:rPr><w:t xml:space="preserve">nr albumu 46653</w:t></w:r></w:p>
+<w:p><w:pPr><w:spacing w:after="200"/><w:ind w:left="284"/><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="Times New Roman" w:cs="Times New Roman"/></w:rPr></w:pPr></w:p>
+<w:p><w:pPr><w:spacing w:after="200"/><w:ind w:left="284"/><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="Times New Roman" w:cs="Times New Roman"/><w:b/><w:sz w:val="32"/><w:szCs w:val="32"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="Times New Roman" w:cs="Times New Roman"/><w:b/><w:sz w:val="32"/><w:szCs w:val="32"/></w:rPr><w:t xml:space="preserve">Projekt i implementacja systemu wspomagania zarządzania korespondencją i terminami w postępowaniach administracyjnych</w:t></w:r></w:p>
+<w:p><w:pPr><w:spacing w:after="200"/><w:ind w:left="284"/><w:jc w:val="both"/><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="Times New Roman" w:cs="Times New Roman"/></w:rPr></w:pPr></w:p>
+<w:p><w:pPr><w:spacing w:after="200"/><w:ind w:left="284"/><w:jc w:val="both"/><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="Times New Roman" w:cs="Times New Roman"/></w:rPr></w:pPr></w:p>
+<w:p><w:pPr><w:spacing w:after="200"/><w:ind w:left="4956"/><w:jc w:val="both"/><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="Times New Roman" w:cs="Times New Roman"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="Times New Roman" w:cs="Times New Roman"/></w:rPr><w:t xml:space="preserve">Dokumentacja do projektu dyplomowego</w:t></w:r></w:p>
+<w:p><w:pPr><w:spacing w:after="200"/><w:ind w:left="4956"/><w:jc w:val="both"/><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="Times New Roman" w:cs="Times New Roman"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="Times New Roman" w:cs="Times New Roman"/></w:rPr><w:t xml:space="preserve">przygotowana pod kierunkiem</w:t></w:r></w:p>
+<w:p><w:pPr><w:spacing w:after="200"/><w:ind w:left="4956"/><w:jc w:val="both"/><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="Times New Roman" w:cs="Times New Roman"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="Times New Roman" w:cs="Times New Roman"/></w:rPr><w:t xml:space="preserve">dra Marcina Kacprowicza</w:t></w:r></w:p>
+<w:p><w:pPr><w:spacing w:after="200"/><w:ind w:left="284"/><w:jc w:val="both"/><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="Times New Roman" w:cs="Times New Roman"/></w:rPr></w:pPr></w:p>
+<w:p><w:pPr><w:spacing w:after="200"/><w:ind w:left="284"/><w:jc w:val="both"/><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="Times New Roman" w:cs="Times New Roman"/></w:rPr></w:pPr></w:p>
+<w:p><w:pPr><w:spacing w:after="200"/><w:ind w:left="284"/><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="Times New Roman" w:cs="Times New Roman"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="Times New Roman" w:cs="Times New Roman"/></w:rPr><w:t xml:space="preserve">Warszawa, 2026</w:t></w:r></w:p>
 <w:p><w:r><w:br w:type="page"/></w:r></w:p>
 ```

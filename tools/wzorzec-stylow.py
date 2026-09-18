@@ -84,6 +84,12 @@ STYLE_TYTULOWE = (
     '<w:name w:val="TytulSrodek"/><w:basedOn w:val="Normal"/><w:qFormat/>'
     '<w:pPr><w:jc w:val="center"/><w:spacing w:before="0" w:after="120"/></w:pPr>'
     '</w:style>'
+    # Akapit z logo: wyśrodkowany, z wcięciem i odstępem jak w szablonie.
+    '<w:style w:type="paragraph" w:styleId="TytulLogo">'
+    '<w:name w:val="TytulLogo"/><w:basedOn w:val="Normal"/><w:qFormat/>'
+    '<w:pPr><w:spacing w:before="0" w:after="200"/><w:ind w:left="284"/>'
+    '<w:jc w:val="center"/></w:pPr>'
+    '</w:style>'
     '<w:style w:type="paragraph" w:styleId="TytulSrodekMocny">'
     '<w:name w:val="TytulSrodekMocny"/><w:basedOn w:val="Normal"/><w:qFormat/>'
     '<w:pPr><w:jc w:val="center"/><w:spacing w:before="240" w:after="240"/></w:pPr>'
