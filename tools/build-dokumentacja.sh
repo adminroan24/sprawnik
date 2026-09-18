@@ -6,11 +6,12 @@
 # binarny i w historii gita nie ujawnia żadnych różnic. Treść prowadzona jest
 # więc w Markdownie, a dokument oddawany promotorowi powstaje z tych źródeł.
 #
-# Dlaczego bez --reference-doc:
-# szablon uczelniany sprawdzono jako wzorzec stylów pandoca — powoduje, że
-# tabele przestają się renderować (komórki rozsypują się na osobne akapity).
-# Szablon traktujemy jako specyfikację treści: układ sekcji i limity stron.
-# Struktura plików źródłowych odpowiada jego sekcjom 1:1.
+# Wygląd dokumentu:
+# szablon uczelniany użyty wprost jako --reference-doc rozsypuje tabele, dlatego
+# wzorzec stylów budowany jest osobno (tools/wzorzec-stylow.py): sprawny wzorzec
+# pandoca z przeniesionymi cechami wyglądu szablonu — Calibri 12 pkt, nagłówki
+# Calibri Light w kolorze 2F5496, A4 z marginesami 2,5 cm.
+# Układ sekcji dokumentu odpowiada sekcjom szablonu 1:1.
 set -euo pipefail
 
 KATALOG="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -33,8 +34,12 @@ fi
 #    (../diagramy/...) rozwiązywały się poprawnie.
 mkdir -p "$KATALOG/build"
 cd "$ZRODLA"
+# Wzorzec stylów zgodny z wyglądem szablonu uczelnianego.
+WZORZEC="$KATALOG/build/wzorzec-stylow.docx"
+python3 "$KATALOG/tools/wzorzec-stylow.py" "$WZORZEC" >/dev/null
+
 # Szablon nie przewiduje spisu treści, a strona tytułowa ma być pierwsza.
-pandoc -M lang=pl \
+pandoc -M lang=pl --reference-doc="$WZORZEC" \
   00-strona-tytulowa.md \
   01-podstawowe-informacje.md \
   02-kluczowe-zagadnienia.md \
