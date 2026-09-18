@@ -67,6 +67,11 @@ w środowisku lokalnym.
 
 ## Dokumentacja
 
+**Złożony dokument do podglądu:**
+[dokumentacja-projektowa.pdf](docs/dokumentacja-projektowa.pdf) — otwiera się
+wprost w przeglądarce GitHuba. Wersją oddawaną jest plik `.docx` generowany
+z tych samych źródeł.
+
 Dokumentacja projektowa prowadzona jest zgodnie z szablonem uczelnianym.
 Treść zapisano w plikach źródłowych Markdown, z których generowany jest
 dokument końcowy — dzięki temu historia repozytorium pokazuje przebieg pracy

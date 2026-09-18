@@ -49,3 +49,18 @@ pandoc -M lang=pl --reference-doc="$WZORZEC" \
   -o "$WYNIK"
 
 echo "gotowe: $WYNIK"
+
+# 3. Wersja PDF — służy do podglądu w repozytorium, gdzie GitHub renderuje ją
+#    we wbudowanej przeglądarce. Plik .docx pozostaje wersją oddawaną.
+if command -v libreoffice >/dev/null 2>&1; then
+  rm -f "$KATALOG/build/dokumentacja-projektowa.pdf"
+  libreoffice --headless --convert-to pdf --outdir "$KATALOG/build" "$WYNIK" >/dev/null 2>&1
+  echo "gotowe: $KATALOG/build/dokumentacja-projektowa.pdf"
+fi
+
+# 4. Publikacja migawki do repozytorium — wywoływana świadomie, nie przy każdej
+#    przebudowie, aby historia nie puchła od kolejnych wersji pliku binarnego.
+if [[ "${1:-}" == "--publikuj" ]]; then
+  cp "$KATALOG/build/dokumentacja-projektowa.pdf" "$KATALOG/docs/dokumentacja-projektowa.pdf"
+  echo "opublikowano: docs/dokumentacja-projektowa.pdf"
+fi

@@ -13,6 +13,11 @@ binarny — w repozytorium każda jego wersja wygląda jak zupełnie nowy plik,
 bez możliwości porównania zmian. Pliki źródłowe pokazują dokładnie, co i kiedy
 zostało dopisane lub poprawione.
 
+Złożony dokument w wersji do podglądu: [`../dokumentacja-projektowa.pdf`](../dokumentacja-projektowa.pdf).
+Publikowany jest świadomie, przy zamykaniu etapu — nie przy każdej przebudowie,
+aby historia repozytorium nie puchła od kolejnych wersji pliku binarnego.
+Polecenie: `bash tools/build-dokumentacja.sh --publikuj`.
+
 ## Układ plików
 
 | Plik | Sekcja szablonu | Limit stron |
