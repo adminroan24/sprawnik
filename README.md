@@ -67,10 +67,40 @@ w środowisku lokalnym.
 
 ## Dokumentacja
 
-- [Cel i założenia](docs/01-cel-i-zalozenia.md)
-- Przypadki użycia — w przygotowaniu
-- Model danych — w przygotowaniu
-- Architektura — w przygotowaniu
+Dokumentacja projektowa prowadzona jest zgodnie z szablonem uczelnianym.
+Treść zapisano w plikach źródłowych Markdown, z których generowany jest
+dokument końcowy — dzięki temu historia repozytorium pokazuje przebieg pracy
+nad dokumentacją, czego plik binarny nie ujawnia.
+
+| Sekcja | Plik | Stan |
+|--------|------|------|
+| 1. Podstawowe informacje | [01-podstawowe-informacje.md](docs/dokumentacja/01-podstawowe-informacje.md) | gotowe |
+| 2.1. Przypadki użycia | [02-kluczowe-zagadnienia.md](docs/dokumentacja/02-kluczowe-zagadnienia.md) | gotowe |
+| 2.2. Model danych | [02-kluczowe-zagadnienia.md](docs/dokumentacja/02-kluczowe-zagadnienia.md) | gotowe |
+| 2.3. Architektura | [02-kluczowe-zagadnienia.md](docs/dokumentacja/02-kluczowe-zagadnienia.md) | gotowe |
+| 2.4. Fragmenty implementacji | [02-kluczowe-zagadnienia.md](docs/dokumentacja/02-kluczowe-zagadnienia.md) | w trakcie |
+| 3. Zrzuty ekranu | [03-zrzuty-ekranu.md](docs/dokumentacja/03-zrzuty-ekranu.md) | po ukończeniu interfejsu |
+| 4. Wnioski | [04-wnioski.md](docs/dokumentacja/04-wnioski.md) | na zakończenie etapu |
+| 5. Bibliografia | [05-bibliografia.md](docs/dokumentacja/05-bibliografia.md) | uzupełniana na bieżąco |
+
+### Diagramy
+
+Każdy diagram ma w repozytorium źródło tekstowe obok obrazu, więc jego zmiany
+są czytelne w historii zmian.
+
+| Diagram | Obraz | Źródło |
+|---------|-------|--------|
+| Przypadki użycia (UML) | [przypadki-uzycia.png](docs/diagramy/przypadki-uzycia.png) | [.puml](docs/diagramy/przypadki-uzycia.puml) |
+| Model danych (ERD) | [model-danych.png](docs/diagramy/model-danych.png) | [.puml](docs/diagramy/model-danych.puml) |
+| Architektura (komponenty) | [architektura.png](docs/diagramy/architektura.png) | [.puml](docs/diagramy/architektura.puml) |
+
+### Złożenie dokumentu
+
+```bash
+bash tools/build-dokumentacja.sh     # → build/dokumentacja-projektowa.docx
+```
+
+Materiał źródłowy poprzedzający dokumentację: [cel i założenia systemu](docs/01-cel-i-zalozenia.md).
 
 ## Charakter projektu
 
