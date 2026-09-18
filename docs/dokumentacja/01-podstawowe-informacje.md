@@ -80,14 +80,17 @@ zasadniczą — że termin trzeba do nich wpisać samodzielnie, już wyliczony.
 Narzędzie nie wie, czym jest data doręczenia, i nie odtworzy, skąd wzięła się
 data w przypomnieniu.
 
-| Kryterium | Arkusz | EZD | System kancelaryjny | Menedżer zadań | Sprawnik |
-|-----------|:------:|:---:|:-------------------:|:--------------:|:--------:|
-| Rejestr korespondencji | częściowo | tak | tak | nie | tak |
-| Odrębna data doręczenia | nie | tak | tak | nie | tak |
-| Automatyczne wyznaczanie terminu z reguły | nie | nie | częściowo | nie | tak |
-| Uwzględnianie dni wolnych | nie | nie | częściowo | nie | tak |
-| Odtwarzalność wyliczenia terminu | nie | nie | nie | nie | tak |
-| Dostępność dla osoby prywatnej | tak | nie | nie | tak | tak |
+| Kryterium                       | Arkusz | EZD | Kanc. | Zadania | Sprawnik |
+|------------------------|:------:|:------:|:------:|:-------:|:----------:|
+| Rejestr korespondencji          | part.  | tak | tak   | nie     | tak      |
+| Odrębna data doręczenia         | nie    | tak | tak   | nie     | tak      |
+| Wyznaczanie terminu z reguły    | nie    | nie | part. | nie     | tak      |
+| Uwzględnianie dni wolnych       | nie    | nie | part. | nie     | tak      |
+| Odtwarzalność wyliczenia        | nie    | nie | nie   | nie     | tak      |
+| Dostępność dla osoby prywatnej  | tak    | nie | nie   | tak     | tak      |
+
+Skróty: *Kanc.* — system kancelaryjny, *Zadania* — ogólny menedżer zadań,
+*part.* — funkcja obecna częściowo lub zależna od konfiguracji.
 
 Nisza, którą zajmuje projekt, leży między arkuszem a systemem kancelaryjnym:
 narzędzie na tyle proste, by prowadzić w nim kilka spraw własnych, i na tyle

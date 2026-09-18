@@ -33,7 +33,8 @@ fi
 #    (../diagramy/...) rozwiązywały się poprawnie.
 mkdir -p "$KATALOG/build"
 cd "$ZRODLA"
-pandoc --toc --toc-depth=2 \
+# Szablon nie przewiduje spisu treści, a strona tytułowa ma być pierwsza.
+pandoc -M lang=pl \
   00-strona-tytulowa.md \
   01-podstawowe-informacje.md \
   02-kluczowe-zagadnienia.md \
