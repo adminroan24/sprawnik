@@ -1,4 +1,4 @@
-import { pool } from './pool.js';
+import { pool, type Wykonawca } from './pool.js';
 
 export type KierunekPisma = 'przychodzace' | 'wychodzace';
 
@@ -52,8 +52,8 @@ export async function dodaj(dane: {
   dataNadania: string | null;
   dataDoreczenia: string | null;
   opis: string | null;
-}): Promise<Pismo> {
-  const { rows } = await pool.query<Pismo>(
+}, wykonawca: Wykonawca = pool): Promise<Pismo> {
+  const { rows } = await wykonawca.query<Pismo>(
     `INSERT INTO pismo
        (sprawa_id, kierunek, rodzaj, korespondent, znak_pisma, data_nadania, data_doreczenia, opis)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)

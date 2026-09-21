@@ -25,6 +25,32 @@ export async function checkConnection(): Promise<boolean> {
   }
 }
 
+/**
+ * Odbiorca zapytań: pula albo pojedyncze połączenie objęte transakcją.
+ * Pozwala tym samym funkcjom repozytoriów działać wewnątrz transakcji i poza nią.
+ */
+export type Wykonawca = Pick<pg.Pool, 'query'>;
+
+/**
+ * Wykonuje operacje w jednej transakcji. Zapis pisma wraz z wyznaczonym
+ * terminem musi być niepodzielny — pismo bez terminu, który miał z niego
+ * powstać, byłoby danymi wprowadzającymi w błąd.
+ */
+export async function wTransakcji<T>(operacje: (wykonawca: Wykonawca) => Promise<T>): Promise<T> {
+  const polaczenie = await pool.connect();
+  try {
+    await polaczenie.query('BEGIN');
+    const wynik = await operacje(polaczenie);
+    await polaczenie.query('COMMIT');
+    return wynik;
+  } catch (blad) {
+    await polaczenie.query('ROLLBACK');
+    throw blad;
+  } finally {
+    polaczenie.release();
+  }
+}
+
 export async function closePool(): Promise<void> {
   await pool.end();
 }

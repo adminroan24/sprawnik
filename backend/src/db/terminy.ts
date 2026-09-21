@@ -1,4 +1,4 @@
-import { pool } from './pool.js';
+import { pool, type Wykonawca } from './pool.js';
 import type { SposobWyznaczenia, StatusTerminu } from '../services/terminy.js';
 
 export type Termin = {
@@ -77,8 +77,8 @@ export async function dodaj(dane: {
   dataPoczatkowa: string;
   dataUplywu: string;
   sposobWyznaczenia: SposobWyznaczenia;
-}): Promise<Termin> {
-  const { rows } = await pool.query<Termin>(
+}, wykonawca: Wykonawca = pool): Promise<Termin> {
+  const { rows } = await wykonawca.query<Termin>(
     `INSERT INTO termin
        (sprawa_id, pismo_id, regula_id, czynnosc, data_poczatkowa, data_uplywu, sposob_wyznaczenia)
      VALUES ($1, $2, $3, $4, $5, $6, $7)
