@@ -44,7 +44,8 @@ VALUES
 -- i sprawdzalna wprost, bez uruchamiania wyliczeń w bazie.
 --
 -- 24 grudnia ujęto jako dzień ustawowo wolny zgodnie z ustawą z 6 grudnia 2024 r.
--- o zmianie ustawy o dniach wolnych od pracy, obowiązującą od 1 lutego 2025 r.
+-- o zmianie ustawy o dniach wolnych od pracy oraz niektórych innych ustaw
+-- (Dz.U. 2024 poz. 1965), obowiązującą od 1 lutego 2025 r.
 --
 -- Zakres 2026-2030 odpowiada demonstracyjnemu charakterowi systemu. Wydłużenie
 -- kalendarza polega na dopisaniu wierszy, nie na zmianie aplikacji.

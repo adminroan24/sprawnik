@@ -201,7 +201,8 @@ Wielki Piątek nie występuje w zestawieniu, ponieważ w Polsce nie jest dniem
 ustawowo wolnym od pracy — ciąg dni wolnych wokół Wielkanocy rozpoczyna się
 dopiero w sobotę. Kalendarz systemu obejmuje czternaście dni ustawowo wolnych,
 w tym 24 grudnia, wolne od 2025 roku na podstawie ustawy z 6 grudnia 2024 r.
-o zmianie ustawy o dniach wolnych od pracy.
+o zmianie ustawy o dniach wolnych od pracy oraz niektórych innych ustaw
+(Dz.U. 2024 poz. 1965).
 
 Zachowanie to sterowane jest kolumną `regula_terminu.przesuwaj_dni_wolne`.
 Pozostaje konfigurowalne dla każdej reguły z osobna, ponieważ nie każdy termin

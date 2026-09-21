@@ -3,18 +3,20 @@
 ## Akty prawne
 
 1. Ustawa z dnia 14 czerwca 1960 r. — Kodeks postępowania administracyjnego
-   (Dz.U. 1960 nr 30 poz. 168, z późn. zm.).
+   (Dz.U. 1960 nr 30 poz. 168, z późn. zm.; tekst jedn. Dz.U. 2025 poz. 1691).
 2. Ustawa z dnia 30 sierpnia 2002 r. — Prawo o postępowaniu przed sądami
-   administracyjnymi (Dz.U. 2002 nr 153 poz. 1270, z późn. zm.).
+   administracyjnymi (Dz.U. 2002 nr 153 poz. 1270, z późn. zm.;
+   tekst jedn. Dz.U. 2024 poz. 935).
 3. Ustawa z dnia 18 stycznia 1951 r. o dniach wolnych od pracy
-   (Dz.U. 1951 nr 4 poz. 28, z późn. zm.).
+   (Dz.U. 1951 nr 4 poz. 28, z późn. zm.; tekst jedn. Dz.U. 2025 poz. 296).
 4. Ustawa z dnia 6 grudnia 2024 r. o zmianie ustawy o dniach wolnych od pracy
-   oraz niektórych innych ustaw — wprowadzająca 24 grudnia jako dzień ustawowo
-   wolny od pracy, obowiązująca od 1 lutego 2025 r.
+   oraz niektórych innych ustaw (Dz.U. 2024 poz. 1965) — wprowadza 24 grudnia
+   jako dzień ustawowo wolny od pracy, obowiązuje od 1 lutego 2025 r.
 
-Akty przywołano jako źródło reguł odwzorowanych w systemie w postaci danych.
-Projekt ma charakter demonstracyjny i nie stanowi odwzorowania kompletnych
-procedur administracyjnych.
+Sygnatury zweryfikowano w Internetowym Systemie Aktów Prawnych
+(isap.sejm.gov.pl). Akty przywołano jako źródło reguł odwzorowanych w systemie
+w postaci danych. Projekt ma charakter demonstracyjny i nie stanowi
+odwzorowania kompletnych procedur administracyjnych.
 
 ## Dokumentacja techniczna
 
