@@ -189,12 +189,19 @@ wolnym bywa również wolny:
 | sobota | dzień tygodnia | poniedziałek |
 | niedziela | dzień tygodnia | poniedziałek |
 | 3 maja (środa) | dzień ustawowo wolny | czwartek 4 maja |
-| Wielki Piątek | dzień ustawowo wolny, po nim sobota, niedziela i Poniedziałek Wielkanocny | wtorek po Wielkanocy |
+| Wielka Sobota | dzień tygodnia, po niej Niedziela i Poniedziałek Wielkanocny | wtorek po Wielkanocy |
 | 25 grudnia | dzień ustawowo wolny, po nim 26 grudnia również | 27 grudnia albo pierwszy dzień roboczy po nim |
+| 24 grudnia 2026 (czwartek) | Wigilia, Boże Narodzenie, drugi dzień świąt w sobotę i niedziela | poniedziałek 28 grudnia |
 
-Ostatni wiersz pokazuje, dlaczego zachowanie trzeba zapisać jako pętlę, a nie
-jako przesunięcie o jeden dzień: między datą wyliczoną a terminem ostatecznym
-potrafi leżeć kilka dni wolnych z rzędu.
+Dwa ostatnie wiersze pokazują, dlaczego zachowanie trzeba zapisać jako pętlę,
+a nie jako przesunięcie o jeden dzień: między datą wyliczoną a terminem
+ostatecznym potrafi leżeć kilka dni wolnych z rzędu.
+
+Wielki Piątek nie występuje w zestawieniu, ponieważ w Polsce nie jest dniem
+ustawowo wolnym od pracy — ciąg dni wolnych wokół Wielkanocy rozpoczyna się
+dopiero w sobotę. Kalendarz systemu obejmuje czternaście dni ustawowo wolnych,
+w tym 24 grudnia, wolne od 2025 roku na podstawie ustawy z 6 grudnia 2024 r.
+o zmianie ustawy o dniach wolnych od pracy.
 
 Zachowanie to sterowane jest kolumną `regula_terminu.przesuwaj_dni_wolne`.
 Pozostaje konfigurowalne dla każdej reguły z osobna, ponieważ nie każdy termin
