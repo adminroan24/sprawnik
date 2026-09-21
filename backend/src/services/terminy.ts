@@ -15,6 +15,8 @@
 export type SposobLiczenia = 'dni_kalendarzowe' | 'dni_robocze';
 export type ZdarzeniePoczatkowe = 'doreczenie' | 'nadanie';
 export type StanTerminu = 'odlegly' | 'zblizajacy_sie' | 'przekroczony';
+export type SposobWyznaczenia = 'automatyczny' | 'reczny';
+export type StatusTerminu = 'otwarty' | 'wykonany' | 'anulowany';
 
 /** Reguła terminu — dane odczytane z tabeli `regula_terminu`. */
 export type RegulaTerminu = {
