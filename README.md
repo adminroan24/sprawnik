@@ -47,14 +47,33 @@ Wymagania: Node.js 20+, Docker z wtyczką Compose.
 
 ```bash
 cp .env.example .env          # uzupełnij wartości
-docker compose up -d db       # PostgreSQL na porcie 5435
+docker compose up -d db       # PostgreSQL na porcie 5435, migracje wykonują się przy pierwszym starcie
 
 cd backend && npm install && npm run dev     # API na porcie 3100
 cd frontend && npm install && npm run dev    # interfejs na porcie 5180
 ```
 
-Sprawdzenie stanu systemu: [http://127.0.0.1:5180](http://127.0.0.1:5180) —
-strona startowa odpytuje `/api/health` i pokazuje stan API oraz połączenia z bazą.
+Migracje z `db/migrations/` wykonują się automatycznie przy tworzeniu bazy.
+Na bazie już istniejącej uruchamia się je ręcznie:
+
+```bash
+for plik in db/migrations/*.sql; do
+  docker exec -i sprawnik-db psql -U sprawnik -d sprawnik -v ON_ERROR_STOP=1 < "$plik"
+done
+```
+
+System nie ma publicznej rejestracji — pierwsze konto zakłada się poleceniem,
+a dane demonstracyjne (sprawy, pisma i wyznaczone z nich terminy) są opcjonalne:
+
+```bash
+cd backend
+npm run konto -- adres@example.com haslo-o-osmiu-znakach "Imię Nazwisko" administrator
+npm run demo  -- adres@example.com
+npm test                                     # testy silnika wyznaczania terminów
+```
+
+Interfejs: [http://127.0.0.1:5180](http://127.0.0.1:5180). Stan samego API
+i połączenia z bazą: `/api/health`.
 
 | Składnik | Port |
 |----------|------|
@@ -83,8 +102,8 @@ nad dokumentacją, czego plik binarny nie ujawnia.
 | 2.1. Przypadki użycia | [02-kluczowe-zagadnienia.md](docs/dokumentacja/02-kluczowe-zagadnienia.md) | gotowe |
 | 2.2. Model danych | [02-kluczowe-zagadnienia.md](docs/dokumentacja/02-kluczowe-zagadnienia.md) | gotowe |
 | 2.3. Architektura | [02-kluczowe-zagadnienia.md](docs/dokumentacja/02-kluczowe-zagadnienia.md) | gotowe |
-| 2.4. Fragmenty implementacji | [02-kluczowe-zagadnienia.md](docs/dokumentacja/02-kluczowe-zagadnienia.md) | w trakcie |
-| 3. Zrzuty ekranu | [03-zrzuty-ekranu.md](docs/dokumentacja/03-zrzuty-ekranu.md) | po ukończeniu interfejsu |
+| 2.4. Fragmenty implementacji | [02-kluczowe-zagadnienia.md](docs/dokumentacja/02-kluczowe-zagadnienia.md) | gotowe |
+| 3. Zrzuty ekranu | [03-zrzuty-ekranu.md](docs/dokumentacja/03-zrzuty-ekranu.md) | gotowe |
 | 4. Wnioski | [04-wnioski.md](docs/dokumentacja/04-wnioski.md) | na zakończenie etapu |
 | 5. Bibliografia | [05-bibliografia.md](docs/dokumentacja/05-bibliografia.md) | uzupełniana na bieżąco |
 
@@ -106,6 +125,30 @@ bash tools/build-dokumentacja.sh     # → build/dokumentacja-projektowa.docx
 ```
 
 Materiał źródłowy poprzedzający dokumentację: [cel i założenia systemu](docs/01-cel-i-zalozenia.md).
+
+## Stan implementacji
+
+| Funkcja | Stan |
+|---------|------|
+| F1. Rejestracja i obsługa spraw | zaimplementowana |
+| F2. Korespondencja przychodząca i wychodząca | zaimplementowana |
+| F3. Dołączanie dokumentów | model danych gotowy, obsługa plików w przygotowaniu |
+| F4. Reguły terminów i ich wyznaczanie | zaimplementowana, pokryta testami |
+| F5. Prezentacja terminów i ostrzeganie | zaimplementowana |
+| F6. Wyszukiwanie i filtrowanie spraw | zaimplementowane |
+| F7. Chronologia sprawy | zaimplementowana |
+| F8. Uwierzytelnianie i uprawnienia | zaimplementowane; zakładanie kont poleceniem, bez panelu |
+
+Struktura katalogów odpowiada warstwom z diagramu komponentów:
+
+| Katalog | Warstwa |
+|---------|---------|
+| `frontend/src/` | warstwa frontendowa |
+| `backend/src/routes/` | API — trasy REST |
+| `backend/src/middleware/` | uwierzytelnianie, obsługa błędów |
+| `backend/src/services/` | warstwa dziedzinowa, w tym silnik terminów |
+| `backend/src/db/` | dostęp do danych |
+| `db/migrations/` | schemat bazy i dane konfiguracyjne |
 
 ## Charakter projektu
 

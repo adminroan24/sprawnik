@@ -13,3 +13,6 @@ notatki/
 
 # Dokument generowany ze źródeł w docs/dokumentacja
 build/
+
+# Pliki pomocnicze kompilatora TypeScript
+*.tsbuildinfo

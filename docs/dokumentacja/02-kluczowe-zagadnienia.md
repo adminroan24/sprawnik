@@ -306,4 +306,64 @@ bez wartości rzeczywistych.
 
 ## 2.4. Kluczowe fragmenty implementacji
 
-<!-- Do napisania 19-21.09, wraz z rozwojem kodu. -->
+### Przesunięcie terminu na najbliższy dzień roboczy
+
+Zachowanie opisane w punkcie 2.2 zapisane jest jako pętla, a nie jako
+przesunięcie o jeden dzień. Dzień wolny rozpoznawany jest dwojako: sobota
+i niedziela wynikają z samej daty, dni ustawowo wolne — z kalendarza w bazie.
+
+```ts
+export function czyDzienWolny(iso: string, kalendarz: Kalendarz): boolean {
+  const dzienTygodnia = naDate(iso).getUTCDay();
+  return dzienTygodnia === 0 || dzienTygodnia === 6 || kalendarz.has(iso);
+}
+
+export function najblizszyDzienRoboczy(iso: string, kalendarz: Kalendarz): string {
+  let data = naDate(iso);
+  while (czyDzienWolny(naIso(data), kalendarz)) {
+    data = przesun(data, 1);
+  }
+  return naIso(data);
+}
+```
+
+Silnik terminów nie odwołuje się do bazy danych ani do protokołu HTTP: przyjmuje
+regułę, datę początkową i kalendarz jako argumenty. Dzięki temu sprawdzany jest
+testem jednostkowym bez uruchamiania serwera — testy obejmują między innymi
+przypadek czterech dni wolnych z rzędu na przełomie grudnia oraz dni wolne wokół
+Wielkanocy.
+
+Oprócz daty upływu zwracana jest data sprzed przesunięcia, dzięki czemu wynik
+można prześledzić zamiast przyjmować go na wiarę.
+
+### Powstanie terminu przy rejestracji pisma
+
+Rejestracja pisma i wyznaczenie terminu to jedna operacja niepodzielna, bo UC3
+zawiera UC7. Termin powstaje wyłącznie wtedy, gdy nastąpiło zdarzenie, od
+którego biegnie:
+
+```ts
+const poczatek = dataBiegu(regula.zdarzeniePoczatkowe, pismo);
+if (!poczatek) {
+  return {
+    pismo,
+    termin: null,
+    powodBrakuTerminu:
+      'Pismo oczekuje na potwierdzenie doręczenia — termin powstanie po uzupełnieniu daty',
+  };
+}
+```
+
+Brak daty doręczenia nie jest więc błędem walidacji, lecz stanem przewidzianym:
+pismo zapisuje się bez terminu wraz z wyjaśnieniem, a termin powstaje przy
+uzupełnieniu daty. Alternatywa — przyjęcie daty nadania jako zastępczej —
+dawałaby wynik systematycznie zaniżony.
+
+### Odwzorowanie warstw w kodzie
+
+Każda warstwa z diagramu komponentów ma w repozytorium osobny katalog
+(`routes`, `middleware`, `services`, `db`), a zależności biegną wyłącznie
+w jedną stronę. Trasa nie zawiera zapytań SQL, a moduł dziedzinowy nie zna
+obiektu żądania. Uwierzytelnianie działa jako ogniwo uruchamiane przed obsługą
+żądania, więc trasa chroniona nie może pominąć sprawdzenia tożsamości przez
+przeoczenie.
