@@ -106,6 +106,13 @@ def dodaj_style_tytulowe(style: str) -> str:
 
 
 def ustaw_format_strony(dokument: str) -> str:
+    # Wzorzec pandoca kończy się pustym, samozamykającym się znacznikiem
+    # <w:sectPr />. Wyrażenie szukające pary znaczników go nie obejmuje, więc
+    # podmiana cicho nie zachodziła, a dokument nie miał zapisanego rozmiaru
+    # strony i otwierał się w formacie domyślnym edytora — u odbiorcy mógł to
+    # być Letter zamiast A4 wymaganego przez szablon.
+    if re.search(r'<w:sectPr\s*/>', dokument):
+        return re.sub(r'<w:sectPr\s*/>', SECT_PR, dokument)
     if '<w:sectPr' in dokument:
         return re.sub(r'<w:sectPr.*?</w:sectPr>', SECT_PR, dokument, flags=re.S)
     return dokument.replace('</w:body>', SECT_PR + '</w:body>')
