@@ -104,8 +104,8 @@ nad dokumentacją, czego plik binarny nie ujawnia.
 | 2.3. Architektura | [02-kluczowe-zagadnienia.md](docs/dokumentacja/02-kluczowe-zagadnienia.md) | gotowe |
 | 2.4. Fragmenty implementacji | [02-kluczowe-zagadnienia.md](docs/dokumentacja/02-kluczowe-zagadnienia.md) | gotowe |
 | 3. Zrzuty ekranu | [03-zrzuty-ekranu.md](docs/dokumentacja/03-zrzuty-ekranu.md) | gotowe |
-| 4. Wnioski | [04-wnioski.md](docs/dokumentacja/04-wnioski.md) | na zakończenie etapu |
-| 5. Bibliografia | [05-bibliografia.md](docs/dokumentacja/05-bibliografia.md) | uzupełniana na bieżąco |
+| 4. Wnioski | [04-wnioski.md](docs/dokumentacja/04-wnioski.md) | gotowe |
+| 5. Bibliografia | [05-bibliografia.md](docs/dokumentacja/05-bibliografia.md) | gotowe |
 
 ### Diagramy
 
