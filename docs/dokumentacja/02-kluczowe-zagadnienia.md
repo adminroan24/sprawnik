@@ -269,9 +269,10 @@ akceptowalny; przy wdrożeniu produkcyjnym wymagałby uzupełnienia.
 
 ### Rozdzielenie obsługi dokumentów
 
-Pliki przechowywane są poza bazą danych, na wolumenie systemu plików.
-W bazie pozostają metadane: nazwa pierwotna, nazwa w magazynie, typ, rozmiar
-i suma kontrolna. Rozważono zapis plików w bazie jako dane binarne — odrzucono
+Pliki mają być przechowywane poza bazą danych, na wolumenie systemu plików,
+a w bazie pozostają ich metadane: nazwa pierwotna, nazwa w magazynie, typ,
+rozmiar i suma kontrolna. Tabela `dokument` jest na to przygotowana; samo
+przyjmowanie plików powstanie w kolejnym etapie prac. Rozważono zapis plików w bazie jako dane binarne — odrzucono
 go, ponieważ powiększałby kopie zapasowe bazy o treść skanów i obciążał pulę
 połączeń przesyłaniem dużych obiektów.
 
@@ -288,14 +289,13 @@ co pozwala odczytać architekturę wprost z repozytorium:
 |---------|---------|
 | `backend/src/routes/` | API — trasy REST |
 | `backend/src/middleware/` | uwierzytelnianie, obsługa błędów |
-| `backend/src/services/` | warstwa dziedzinowa, w tym silnik terminów *(w budowie)* |
+| `backend/src/services/` | warstwa dziedzinowa, w tym silnik terminów |
 | `backend/src/db/` | dostęp do danych |
 | `backend/src/config/` | konfiguracja ze zmiennych środowiskowych |
 | `frontend/src/` | warstwa frontendowa |
 
-Katalogi oznaczone jako będące w budowie powstają wraz z implementacją
-kolejnych funkcji. Pozostałe istnieją w repozytorium w chwili przygotowania
-niniejszego opisu.
+Wszystkie wymienione katalogi istnieją w repozytorium i zawierają kod
+odpowiadający opisanej warstwie.
 
 ### Uruchomienie
 
@@ -314,12 +314,18 @@ przesunięcie o jeden dzień. Dzień wolny rozpoznawany jest dwojako: sobota
 i niedziela wynikają z samej daty, dni ustawowo wolne — z kalendarza w bazie.
 
 ```ts
-export function czyDzienWolny(iso: string, kalendarz: Kalendarz): boolean {
-  const dzienTygodnia = naDate(iso).getUTCDay();
-  return dzienTygodnia === 0 || dzienTygodnia === 6 || kalendarz.has(iso);
+export function czyDzienWolny(
+  iso: string,
+  kalendarz: Kalendarz,
+): boolean {
+  const dzien = naDate(iso).getUTCDay();
+  return dzien === 0 || dzien === 6 || kalendarz.has(iso);
 }
 
-export function najblizszyDzienRoboczy(iso: string, kalendarz: Kalendarz): string {
+export function najblizszyDzienRoboczy(
+  iso: string,
+  kalendarz: Kalendarz,
+): string {
   let data = naDate(iso);
   while (czyDzienWolny(naIso(data), kalendarz)) {
     data = przesun(data, 1);
@@ -350,7 +356,8 @@ if (!poczatek) {
     pismo,
     termin: null,
     powodBrakuTerminu:
-      'Pismo oczekuje na potwierdzenie doręczenia — termin powstanie po uzupełnieniu daty',
+      'Pismo oczekuje na potwierdzenie doręczenia — ' +
+      'termin powstanie po uzupełnieniu daty',
   };
 }
 ```

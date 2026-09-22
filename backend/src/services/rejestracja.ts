@@ -67,7 +67,8 @@ export async function zarejestrujPismo(
         termin: null,
         powodBrakuTerminu:
           regula.zdarzeniePoczatkowe === 'doreczenie'
-            ? 'Pismo oczekuje na potwierdzenie doręczenia — termin powstanie po uzupełnieniu daty'
+            ? 'Pismo oczekuje na potwierdzenie doręczenia — ' +
+              'termin powstanie po uzupełnieniu daty'
             : 'Brak daty nadania, od której biegnie termin',
       };
     }
