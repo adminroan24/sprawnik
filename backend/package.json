@@ -9,9 +9,11 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test 'src/**/*.test.ts'",
+    "test": "npm run test:silnik && npm run test:api",
     "konto": "tsx src/skrypty/utworz-konto.ts",
-    "demo": "tsx src/skrypty/dane-demonstracyjne.ts"
+    "demo": "tsx src/skrypty/dane-demonstracyjne.ts",
+    "test:silnik": "node --import tsx --test 'src/services/*.test.ts'",
+    "test:api": "DATABASE_URL=${TEST_DATABASE_URL:-postgresql://sprawnik:sprawnik@localhost:5435/sprawnik_test} node --import tsx --test 'src/testy/*.test.ts'"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

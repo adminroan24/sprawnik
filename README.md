@@ -1,5 +1,7 @@
 # Sprawnik
 
+[![Testy i kontrola typów](https://github.com/adminroan24/sprawnik/actions/workflows/ci.yml/badge.svg)](https://github.com/adminroan24/sprawnik/actions/workflows/ci.yml)
+
 System wspomagania zarządzania korespondencją i terminami w postępowaniach administracyjnych.
 
 Projekt inżynierski — Uniwersytet VIZJA, kierunek Informatyka.
@@ -69,8 +71,25 @@ a dane demonstracyjne (sprawy, pisma i wyznaczone z nich terminy) są opcjonalne
 cd backend
 npm run konto -- adres@example.com haslo-o-osmiu-znakach "Imię Nazwisko" administrator
 npm run demo  -- adres@example.com
-npm test                                     # testy silnika wyznaczania terminów
 ```
+
+## Testy
+
+```bash
+cd backend
+docker exec sprawnik-db psql -U sprawnik -d postgres -c "CREATE DATABASE sprawnik_test"  # raz
+npm test              # silnik terminów (bez bazy) oraz trasy API (na bazie testowej)
+npm run test:silnik   # sam silnik — nie wymaga bazy
+npm run test:api      # same trasy API
+```
+
+Testy tras API odtwarzają schemat bazy testowej z plików `db/migrations/`, więc
+sprawdzają także kompletność migracji. Zabezpieczenie w kodzie nie pozwala ich
+uruchomić na bazie, której nazwa nie kończy się na `_test`. Inny adres bazy
+wskazuje się zmienną `TEST_DATABASE_URL`.
+
+Te same kroki wykonuje GitHub Actions przy każdej zmianie w repozytorium —
+razem z kontrolą typów i budową wersji produkcyjnej interfejsu.
 
 Interfejs: [http://127.0.0.1:5180](http://127.0.0.1:5180). Stan samego API
 i połączenia z bazą: `/api/health`.

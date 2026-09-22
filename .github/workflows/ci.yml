@@ -1,0 +1,89 @@
+# Kontrola jakości uruchamiana przy każdej zmianie w repozytorium.
+#
+# Zakres odpowiada temu, co sprawdza się lokalnie przed commitem: kontrola typów
+# oraz testy — jednostkowe silnika terminów i testy tras API działające na bazie
+# odtworzonej z migracji. Dzięki temu migracje sprawdzane są wraz z kodem, a nie
+# dopiero przy wdrożeniu.
+
+name: Testy i kontrola typów
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  backend:
+    name: Warstwa serwerowa
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: sprawnik_test
+          POSTGRES_USER: sprawnik
+          POSTGRES_PASSWORD: sprawnik
+        ports:
+          - 5435:5432
+        options: >-
+          --health-cmd "pg_isready -U sprawnik -d sprawnik_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      # Nazwa bazy kończy się na _test, czego wymaga zabezpieczenie w testach:
+      # zestaw odtwarza schemat od zera, więc nie może trafić na bazę roboczą.
+      TEST_DATABASE_URL: postgresql://sprawnik:sprawnik@localhost:5435/sprawnik_test
+      DATABASE_URL: postgresql://sprawnik:sprawnik@localhost:5435/sprawnik_test
+      JWT_SECRET: sekret-uzywany-wylacznie-w-testach
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Instalacja zależności
+        run: npm ci
+
+      - name: Kontrola typów
+        run: npm run typecheck
+
+      - name: Testy silnika terminów i tras API
+        run: npm test
+
+  frontend:
+    name: Warstwa użytkownika
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Instalacja zależności
+        run: npm ci
+
+      - name: Kontrola typów
+        run: npm run typecheck
+
+      - name: Budowa wersji produkcyjnej
+        run: npm run build
