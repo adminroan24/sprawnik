@@ -228,3 +228,7 @@ Zakładka **Skany** (administrator) odbiera pliki z podkatalogów `epson/` i `ky
 ### Profil firmy i drzewo spraw
 
 Administrator edytuje profil jednej organizacji oraz grupy i podgrupy w zakładce **Firma i drzewo**. W **Sprawach** dostępne są drzewo, wybór grupy przy rejestracji i przenoszenie istniejącej sprawy. Opcjonalny szablon CreationX działa dla pustego drzewa. [Instrukcja i migracja 004 dla istniejącej bazy](docs/09-firma-i-drzewo-spraw.md). To rozszerzenie poza pierwotnym zakresem F1–F8; własność spraw pozostaje bez zmian.
+
+### Przypisanie skanu z terminala
+
+Polecenie `npm run przypisz-skan` w katalogu `backend/` obsługuje istniejącą lub nową sprawę i pismo, zachowując datę wpływu oraz OCR. Domyślnie pokazuje plan; `--zapisz` wykonuje import. [Format planu, prywatna sesja i wznowienie](docs/10-przypisywanie-skanow-skryptem.md).

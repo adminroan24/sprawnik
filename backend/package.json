@@ -13,7 +13,8 @@
     "konto": "tsx src/skrypty/utworz-konto.ts",
     "demo": "tsx src/skrypty/dane-demonstracyjne.ts",
     "test:silnik": "node --import tsx --test 'src/services/*.test.ts'",
-    "test:api": "UPLOAD_DIR=$(mktemp -d /tmp/sprawnik-api-test-XXXXXX) DATABASE_URL=${TEST_DATABASE_URL:-postgresql://sprawnik:sprawnik@localhost:5435/sprawnik_test} node --import tsx --test 'src/testy/*.test.ts'"
+    "test:api": "UPLOAD_DIR=$(mktemp -d /tmp/sprawnik-api-test-XXXXXX) DATABASE_URL=${TEST_DATABASE_URL:-postgresql://sprawnik:sprawnik@localhost:5435/sprawnik_test} node --import tsx --test 'src/testy/*.test.ts'",
+    "przypisz-skan": "tsx src/skrypty/przypisz-skan.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
