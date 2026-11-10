@@ -105,9 +105,10 @@ jego prezentacji użytkownikowi (UC8).
 
 ## 2.2. Model danych
 
-Model obejmuje siedem tabel. Cztery odwzorowują przedmiot pracy (sprawa, pismo,
+Model obejmuje osiem tabel. Cztery odwzorowują przedmiot pracy (sprawa, pismo,
 dokument, termin), jedna użytkowników, a dwie stanowią konfigurację mechanizmu
-wyznaczania terminów (reguła terminu, kalendarz dni wolnych).
+wyznaczania terminów (reguła terminu, kalendarz dni wolnych). Ósma przechowuje
+wynik rozpoznawania tekstu dokumentu.
 
 | Tabela | Rola w systemie |
 |--------|-----------------|
@@ -115,6 +116,7 @@ wyznaczania terminów (reguła terminu, kalendarz dni wolnych).
 | `sprawa` | Jednostka nadrzędna. Grupuje korespondencję, dokumenty i terminy jednego postępowania. |
 | `pismo` | Pojedyncza przesyłka przychodząca lub wychodząca. Nośnik dat, od których liczą się terminy. |
 | `dokument` | Plik załączony do pisma wraz z metadanymi pozwalającymi zweryfikować jego tożsamość. |
+| `dokument_ocr` | Rozpoznany tekst dokumentu, języki, liczba stron i data odczytu. |
 | `regula_terminu` | Konfiguracja sposobu wyznaczania terminu. Dane, nie kod. |
 | `termin` | Wyznaczony termin wraz ze śladem pochodzenia. |
 | `dzien_wolny` | Kalendarz dni ustawowo wolnych, wykorzystywany przy liczeniu dni roboczych. |
@@ -284,6 +286,16 @@ Kopia zapasowa musi obejmować bazę i pliki. Obecna wersja nie udostępnia usuw
 dokumentów z poziomu interfejsu ani API. Przy przyszłym dodaniu tej operacji trzeba
 uwzględnić oba magazyny; awaria procesu pomiędzy zapisem pliku i metadanych może
 pozostawić plik bez wpisu w bazie.
+
+Rozszerzenie z 10.11.2026 dodaje tabelę `dokument_ocr` z rozpoznanym tekstem,
+językami i datą odczytu. OCR jest wykonywany lokalnie przez Tesseract; PDF
+jest uprzednio rasteryzowany przez Poppler. Wynik nie zmienia oryginału ani
+nie ustala automatycznie dat i terminów. Skanowanie sprzętowe korzysta z SANE.
+Tabela `pismo` otrzymała kanał korespondencji, numer nadania i powiązanie
+odpowiedzi z pismem w tej samej sprawie; dokument ma również rolę, w tym
+dowodu nadania lub potwierdzenia odbioru. Diagram ERD i diagram komponentów
+uwzględniają rozszerzenie. Szczegóły obsługi zawiera
+`docs/07-obieg-skanowanie-ocr-2026-11-10.md` i migracja 003.
 
 ### Odwzorowanie warstw w kodzie
 

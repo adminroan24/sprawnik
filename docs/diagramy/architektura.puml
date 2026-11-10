@@ -26,7 +26,7 @@ actor "Użytkownik" as U
 
 node "Przeglądarka" {
   component "Warstwa frontendowa\n(React, TypeScript)" as FE {
-    component "Widoki:\nsprawy, pisma, terminy" as WIDOKI
+    component "Widoki:\nsprawy, pisma, terminy,\ndokumenty i skanowanie" as WIDOKI
     component "Klient REST" as KLIENT
   }
 }
@@ -39,9 +39,11 @@ node "Serwer aplikacji (Node.js)" {
   }
 
   component "Warstwa dziedzinowa" as DZIEDZINA {
-    component "Silnik terminów\n(reguła + data doręczenia)" as SILNIK
+    component "Silnik terminów\n(reguła + data zdarzenia)" as SILNIK
     component "Obsługa dokumentów\n(zapis, metadane, pobieranie)" as DOKUMENTY
     component "Rejestr spraw i pism" as REJESTR
+    component "OCR dokumentów" as OCR
+    component "Skanowanie sprzętowe" as SKANOWANIE
   }
 
   component "Warstwa dostępu do danych\n(pula połączeń, zapytania SQL)" as DAO
@@ -53,6 +55,9 @@ database "PostgreSQL 17" as DB {
 }
 
 folder "Magazyn plików\n(wolumen)" as FS
+component "Tesseract i Poppler\nprocesy lokalne" as NARZEDZIA_OCR
+component "SANE scanimage" as SANE
+node "Skaner USB / sieciowy" as SKANER
 
 U --> WIDOKI : obsługuje w przeglądarce
 KLIENT --> TRASY : HTTP, JSON\n(token w nagłówku)
@@ -65,6 +70,12 @@ REJESTR --> DAO : sprawy, pisma
 DOKUMENTY --> DAO : metadane dokumentu
 DOKUMENTY --> FS : zapis i odczyt pliku
 DAO --> DB : SQL
+OCR --> DOKUMENTY : odczyt oryginału
+OCR --> NARZEDZIA_OCR : obrazy / PDF
+OCR --> DAO : zapis tekstu OCR
+SKANOWANIE --> SANE : lokalne wywołanie
+SANE --> SKANER : odczyt kartki
+SKANOWANIE --> DOKUMENTY : zapis skanu PNG
 
 note bottom of FS
   Pliki poza bazą danych.

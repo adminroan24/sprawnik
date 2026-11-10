@@ -106,6 +106,31 @@ Administrator definiuje reguły w zakładce „Reguły”. W widoku sprawy użyt
 może zmienić jej stan na „W toku”, „Zawieszona” lub „Zakończona”. Zakładanie
 kont nadal odbywa się poleceniem `npm run konto`.
 
+## Obieg korespondencji, skanowanie i OCR
+
+Rejestr obejmuje wpływy, pisma wychodzące i odpowiedzi powiązane z wcześniejszym
+pismem w tej samej sprawie. Można zapisać kanał i numer nadania oraz dołączyć
+treść pisma, dowód nadania i potwierdzenie odbioru. Pismo wychodzące bez daty
+nadania jest oznaczone jako przygotowywane. „Potwierdź nadanie” i potwierdzenie
+doręczenia zapisują odrębne zdarzenia; aplikacja nie wysyła sama korespondencji.
+
+W sekcji Dokumenty można wykonać zdjęcie aparatem urządzenia lub skan ze skanera
+SANE. Fizyczny skaner obsługuje administrator, po włączeniu `SCANNER_ENABLED=true`.
+Przycisk „Odczytaj tekst OCR” uruchamia lokalny Tesseract dla PNG, JPEG lub PDF.
+Wynik można obejrzeć oraz przeszukiwać po zaznaczeniu odpowiedniego filtra.
+Wymagane pakiety: `tesseract-ocr`, języki `pol` i `eng`, `poppler-utils`, `sane-utils`.
+
+[Instrukcja obiegu, skanowania i OCR oraz rozróżnienie zakresu podstawowego i rozszerzeń](docs/07-obieg-skanowanie-ocr-2026-11-10.md).
+OCR i skanowanie dodano na żądanie autora projektu; nie były warunkiem zaliczenia
+w zachowanych ustaleniach z promotorem. Testy OCR i SANE wymagają tych narzędzi;
+przy ich braku są oznaczone jako pominięte, również w CI.
+
+Dla istniejącej bazy nowy etap wymaga wyłącznie migracji 003:
+
+```bash
+docker exec -i sprawnik-db psql -U sprawnik -d sprawnik -v ON_ERROR_STOP=1 < db/migrations/003_obieg_i_ocr.sql
+```
+
 Te same kroki wykonuje GitHub Actions przy każdej zmianie w repozytorium —
 razem z kontrolą typów i budową wersji produkcyjnej interfejsu.
 

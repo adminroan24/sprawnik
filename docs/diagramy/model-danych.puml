@@ -46,6 +46,9 @@ entity "pismo" as pismo {
   data_nadania : date
   data_doreczenia : date
   opis : text
+  kanal : text
+  numer_nadania : text
+  odpowiedz_na_pismo_id : bigint <<FK>>
   * utworzono : timestamptz
 }
 
@@ -59,7 +62,17 @@ entity "dokument" as dokument {
   * typ_mime : text
   * rozmiar_bajtow : bigint
   suma_kontrolna : text
+  * rola : text
   * dodano : timestamptz
+}
+
+entity "dokument_ocr" as ocr {
+  * dokument_id : bigint <<PK,FK>>
+  --
+  * tekst : text
+  * jezyki : text
+  * liczba_stron : integer
+  * wykonano : timestamptz
 }
 
 entity "regula_terminu" as regula {
@@ -102,6 +115,8 @@ sprawa     ||--o{ pismo       : zawiera
 sprawa     ||--o{ termin      : ma
 pismo      ||--o{ dokument    : ma_zalaczone
 pismo      ||--o{ termin      : jest_podstawa
+pismo      |o--o{ pismo       : odpowiedz_w_tej_samej_sprawie
+dokument   ||--o| ocr         : rozpoznany_tekst
 regula     ||--o{ termin      : wyznacza
 
 note bottom of dzien
