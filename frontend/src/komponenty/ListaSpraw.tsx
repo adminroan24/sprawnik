@@ -1,10 +1,14 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { api } from '../api/client';
 import { Data, Komunikat, Pole, Pusto, nazwaStatusuSprawy } from './wspolne';
-import type { SprawaNaLiscie, StatusSprawy } from '../typy';
+import { DrzewoSpraw } from './DrzewoSpraw';
+import { sciezkaGrupy } from './grupy';
+import type { SprawaNaLiscie, StatusSprawy, GrupaSpraw } from '../typy';
 
 /** UC1 i UC10 — rejestr spraw wraz z wyszukiwaniem i filtrowaniem. */
-export function ListaSpraw({ otworzSprawe }: { otworzSprawe: (id: number) => void }) {
+export function ListaSpraw({ otworzSprawe, otworzSkany }: { otworzSprawe: (id: number) => void; otworzSkany?: () => void }) {
+  const [grupy, setGrupy] = useState<GrupaSpraw[]>([]);
+  const [wybranaGrupa, setWybranaGrupa] = useState('');
   const [sprawy, setSprawy] = useState<SprawaNaLiscie[]>([]);
   const [szukaj, setSzukaj] = useState('');
   const [status, setStatus] = useState<StatusSprawy | ''>('');
@@ -15,6 +19,8 @@ export function ListaSpraw({ otworzSprawe }: { otworzSprawe: (id: number) => voi
     try {
       const parametry = new URLSearchParams();
       if (szukaj.trim()) parametry.set('szukaj', szukaj.trim());
+      if (wybranaGrupa === 'bez') parametry.set('nieprzypisane', 'true');
+      else if (wybranaGrupa) parametry.set('grupaId', wybranaGrupa);
       if (status) parametry.set('status', status);
       const wynik = await api.pobierz<{ sprawy: SprawaNaLiscie[] }>(`/sprawy?${parametry}`);
       setSprawy(wynik.sprawy);
@@ -29,7 +35,8 @@ export function ListaSpraw({ otworzSprawe }: { otworzSprawe: (id: number) => voi
   useEffect(() => {
     const licznik = setTimeout(wczytaj, szukaj ? 250 : 0);
     return () => clearTimeout(licznik);
-  }, [szukaj, status]);
+  }, [szukaj, status, wybranaGrupa]);
+  useEffect(() => { api.pobierz<{ grupy: GrupaSpraw[] }>('/grupy').then(w => setGrupy(w.grupy)).catch(setBlad); }, []);
 
   return (
     <section>
@@ -41,7 +48,7 @@ export function ListaSpraw({ otworzSprawe }: { otworzSprawe: (id: number) => voi
       </header>
 
       {formularzWidoczny && (
-        <FormularzSprawy
+        <FormularzSprawy grupy={grupy} domyslnaGrupa={/^\d+$/.test(wybranaGrupa) ? wybranaGrupa : ''}
           poZapisaniu={(id) => {
             setFormularzWidoczny(false);
             otworzSprawe(id);
@@ -49,6 +56,11 @@ export function ListaSpraw({ otworzSprawe }: { otworzSprawe: (id: number) => voi
         />
       )}
 
+      <div className="uklad-drzewa"><aside className="karta">
+        <h3>Drzewo spraw</h3>{otworzSkany && <button onClick={otworzSkany}>Skany do posegregowania</button>}
+        <DrzewoSpraw grupy={grupy} wybrana={wybranaGrupa} wybierz={id => { setWybranaGrupa(id); setStatus(''); }} />
+        <button onClick={() => { setWybranaGrupa(''); setStatus('zakonczona'); }}>Archiwum — zakończone sprawy</button>
+      </aside><div>
       <div className="filtry">
         <input
           type="search"
@@ -73,7 +85,7 @@ export function ListaSpraw({ otworzSprawe }: { otworzSprawe: (id: number) => voi
           <thead>
             <tr>
               <th>Sprawa</th>
-              <th>Organ</th>
+              <th>Grupa</th><th>Organ</th>
               <th>Stan</th>
               <th>Pisma</th>
               <th>Terminy otwarte</th>
@@ -87,6 +99,7 @@ export function ListaSpraw({ otworzSprawe }: { otworzSprawe: (id: number) => voi
                   <strong>{sprawa.tytul}</strong>
                   {sprawa.znakWlasny && <div className="drobne">znak: {sprawa.znakWlasny}</div>}
                 </td>
+                <td>{sciezkaGrupy(grupy, sprawa.grupaId) || 'Bez przypisanej grupy'}</td>
                 <td>{sprawa.organ ?? <span className="brak">—</span>}</td>
                 <td>{nazwaStatusuSprawy(sprawa.status)}</td>
                 <td className="liczba">{sprawa.liczbaPism}</td>
@@ -99,11 +112,13 @@ export function ListaSpraw({ otworzSprawe }: { otworzSprawe: (id: number) => voi
           </tbody>
         </table>
       )}
+      </div></div>
     </section>
   );
 }
 
-function FormularzSprawy({ poZapisaniu }: { poZapisaniu: (id: number) => void }) {
+function FormularzSprawy({ poZapisaniu, grupy, domyslnaGrupa }: { poZapisaniu: (id: number) => void; grupy: GrupaSpraw[]; domyslnaGrupa: string }) {
+  const [grupaId, setGrupaId] = useState(domyslnaGrupa);
   const [tytul, setTytul] = useState('');
   const [organ, setOrgan] = useState('');
   const [znakWlasny, setZnakWlasny] = useState('');
@@ -115,7 +130,7 @@ function FormularzSprawy({ poZapisaniu }: { poZapisaniu: (id: number) => void })
     zdarzenie.preventDefault();
     try {
       const wynik = await api.wyslij<{ sprawa: { id: number } }>('/sprawy', {
-        tytul,
+        tytul, grupaId: grupaId ? Number(grupaId) : null,
         organ,
         znakWlasny,
         dataWszczecia: dataWszczecia || null,
@@ -149,6 +164,8 @@ function FormularzSprawy({ poZapisaniu }: { poZapisaniu: (id: number) => void })
           />
         </Pole>
       </div>
+      <Pole etykieta="Grupa sprawy"><select value={grupaId} onChange={e => setGrupaId(e.target.value)}><option value="">Bez przypisanej grupy</option>
+        {grupy.map(g => <option key={g.id} value={g.id}>{sciezkaGrupy(grupy, g.id)}</option>)}</select></Pole>
       <Pole etykieta="Opis">
         <textarea value={opis} onChange={(e) => setOpis(e.target.value)} rows={2} />
       </Pole>

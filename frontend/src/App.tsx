@@ -5,13 +5,15 @@ import { ListaSpraw } from './komponenty/ListaSpraw';
 import { WidokSprawy } from './komponenty/WidokSprawy';
 import { PrzegladTerminow } from './komponenty/PrzegladTerminow';
 import { Reguly } from './komponenty/Reguly';
+import { FirmaIDrzewo } from './komponenty/FirmaIDrzewo';
 import { Skany } from './komponenty/Skany';
-import type { Uzytkownik } from './typy';
+import type { Uzytkownik, ProfilFirmy } from './typy';
 
-type Widok = { nazwa: 'sprawy' } | { nazwa: 'sprawa'; id: number } | { nazwa: 'terminy' } | { nazwa: 'reguly' } | { nazwa: 'skany' };
+type Widok = { nazwa: 'sprawy' } | { nazwa: 'sprawa'; id: number } | { nazwa: 'terminy' } | { nazwa: 'reguly' } | { nazwa: 'skany' } | { nazwa: 'firma' };
 
 export function App() {
   const [uzytkownik, setUzytkownik] = useState<Uzytkownik | null>(null);
+  const [firma, setFirma] = useState<ProfilFirmy | null>(null);
   const [sprawdzanie, setSprawdzanie] = useState(true);
   const [widok, setWidok] = useState<Widok>({ nazwa: 'terminy' });
 
@@ -29,13 +31,18 @@ export function App() {
       .finally(() => setSprawdzanie(false));
   }, []);
 
+  useEffect(() => {
+    if (uzytkownik) api.pobierz<{ firma: ProfilFirmy }>('/firma').then(w => setFirma(w.firma)).catch(() => setFirma(null));
+    else setFirma(null);
+  }, [uzytkownik]);
+
   if (sprawdzanie) return <main className="wczytywanie">Wczytywanie…</main>;
   if (!uzytkownik) return <Logowanie poZalogowaniu={setUzytkownik} />;
 
   return (
     <div className="aplikacja">
       <header className="pasek">
-        <span className="marka">Sprawnik</span>
+        <span className="marka">Sprawnik{firma && <small className="nazwa-firmy">{firma.nazwa}</small>}</span>
         <nav>
           <button
             className={widok.nazwa === 'terminy' ? 'aktywny' : ''}
@@ -55,6 +62,8 @@ export function App() {
           {uzytkownik.rola === 'administrator' && <button
             className={widok.nazwa === 'reguly' ? 'aktywny' : ''}
             onClick={() => setWidok({ nazwa: 'reguly' })}>Reguły</button>}
+          {uzytkownik.rola === 'administrator' && <button className={widok.nazwa === 'firma' ? 'aktywny' : ''}
+            onClick={() => setWidok({ nazwa: 'firma' })}>Firma i drzewo</button>}
         </nav>
         <div className="konto">
           <span>{uzytkownik.imieNazwisko}</span>
@@ -72,13 +81,14 @@ export function App() {
       </header>
 
       <main>
+        {widok.nazwa === 'firma' && uzytkownik.rola === 'administrator' && <FirmaIDrzewo poZmianieFirmy={setFirma} />}
         {widok.nazwa === 'skany' && uzytkownik.rola === 'administrator' && <Skany otworzSprawe={(id) => setWidok({ nazwa: 'sprawa', id })} />}
         {widok.nazwa === 'reguly' && uzytkownik.rola === 'administrator' && <Reguly />}
         {widok.nazwa === 'terminy' && (
           <PrzegladTerminow otworzSprawe={(id) => setWidok({ nazwa: 'sprawa', id })} />
         )}
         {widok.nazwa === 'sprawy' && (
-          <ListaSpraw otworzSprawe={(id) => setWidok({ nazwa: 'sprawa', id })} />
+          <ListaSpraw otworzSkany={uzytkownik.rola === 'administrator' ? () => setWidok({ nazwa: 'skany' }) : undefined} otworzSprawe={(id) => setWidok({ nazwa: 'sprawa', id })} />
         )}
         {widok.nazwa === 'sprawa' && (
           <WidokSprawy id={widok.id} wroc={() => setWidok({ nazwa: 'sprawy' })} administrator={uzytkownik.rola === 'administrator'} />

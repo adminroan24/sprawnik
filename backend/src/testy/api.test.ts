@@ -782,3 +782,82 @@ describe('skrzynka skanów i dopasowanie spraw', () => {
     assert.equal((await api.pobierz(`/api/sprawy/${sprawaId}/dokumenty`)).tresc.dokumenty.length, 1);
   });
 });
+
+
+describe('profil firmy i drzewo spraw', () => {
+  it('pozwala zalogowanym odczytać profil, a tylko administratorowi edytować firmę i drzewo', async () => {
+    assert.equal((await klient(serwer.adres).pobierz('/api/firma')).kod, 401);
+    const user = await zaloguj('firma-user@example.com');
+    const admin = await zaloguj('firma-admin@example.com', 'administrator');
+    const firma = { nazwa: 'CreationX', nip: '', email: 'biuro@example.com', telefon: '', adres: '', stronaWww: 'https://example.com' };
+    assert.equal((await user.zmien('/api/firma', firma)).kod, 403);
+    assert.equal((await user.wyslij('/api/grupy', { nazwa: 'Grupa' })).kod, 403);
+    assert.equal((await user.zmien('/api/grupy/1', { nazwa: 'Grupa' })).kod, 403);
+    assert.equal((await user.usun('/api/grupy/1')).kod, 403);
+    assert.equal((await user.wyslij('/api/grupy/szablon-creationx', {})).kod, 403);
+    assert.equal((await admin.zmien('/api/firma', firma)).kod, 200);
+    assert.equal((await user.pobierz('/api/firma')).tresc.firma.nazwa, 'CreationX');
+    assert.equal((await admin.zmien('/api/firma', { ...firma, nazwa: '' })).kod, 400);
+    assert.equal((await admin.zmien('/api/firma', { ...firma, stronaWww: 'javascript:alert(1)' })).kod, 400);
+    assert.equal((await admin.zmien('/api/firma', { ...firma, email: 'brak-adresu' })).kod, 400);
+  });
+  it('zachowuje unikalność nazw i blokuje pętle także przy równoczesnych przeniesieniach', async () => {
+    const a = await zaloguj('drzewo-admin@example.com', 'administrator');
+    const g1 = (await a.wyslij('/api/grupy', { nazwa: 'Pierwsza' })).tresc.grupa;
+    const g2 = (await a.wyslij('/api/grupy', { nazwa: 'Druga' })).tresc.grupa;
+    assert.equal((await a.wyslij('/api/grupy', { nazwa: 'PIERWSZA' })).kod, 409);
+    assert.equal((await a.wyslij('/api/grupy', { nazwa: 'Podgrupa', rodzicId: g1.id })).kod, 201);
+    assert.equal((await a.wyslij('/api/grupy', { nazwa: 'Podgrupa', rodzicId: g2.id })).kod, 201);
+    assert.equal((await a.wyslij('/api/grupy', { nazwa: 'Nieistniejący rodzic', rodzicId: 99999 })).kod, 404);
+    assert.equal((await a.zmien(`/api/grupy/${g1.id}`, { nazwa: 'Pierwsza', rodzicId: g1.id })).kod, 400);
+    const wyniki = await Promise.all([
+      a.zmien(`/api/grupy/${g1.id}`, { nazwa: 'Pierwsza', rodzicId: g2.id }),
+      a.zmien(`/api/grupy/${g2.id}`, { nazwa: 'Druga', rodzicId: g1.id }),
+    ]);
+    assert.deepEqual(wyniki.map(w => w.kod).sort(), [200, 400]);
+  });
+  it('filtruje podgrupy i zachowuje własność spraw, dokumenty oraz terminy podczas przenoszenia', async () => {
+    const admin = await zaloguj('grupy-admin@example.com', 'administrator');
+    const owner = await zaloguj('grupy-owner@example.com');
+    const obcy = await zaloguj('grupy-obcy@example.com');
+    const rodzic = (await admin.wyslij('/api/grupy', { nazwa: 'Urzędy' })).tresc.grupa;
+    const dziecko = (await admin.wyslij('/api/grupy', { nazwa: 'ZUS', rodzicId: rodzic.id })).tresc.grupa;
+    const sprawa = (await owner.wyslij('/api/sprawy', { tytul: 'Własna', grupaId: dziecko.id })).tresc.sprawa;
+    await obcy.wyslij('/api/sprawy', { tytul: 'Obca', grupaId: dziecko.id });
+    await owner.wyslij('/api/sprawy', { tytul: 'Bez przypisania' });
+    const pismo = (await owner.wyslij(`/api/sprawy/${sprawa.id}/pisma`, { kierunek: 'przychodzace', rodzaj: 'Decyzja', korespondent: 'Urząd', dataDoreczenia: '2026-11-06', regulaId: 1 })).tresc.pismo;
+    const dokument = (await owner.przeslijPlik(pismo.id, 'test.txt', Buffer.from('Test grup'))).tresc.dokument;
+    assert.equal((await owner.pobierz(`/api/sprawy?grupaId=${rodzic.id}`)).tresc.sprawy.length, 1);
+    assert.equal((await owner.pobierz('/api/sprawy?nieprzypisane=true')).tresc.sprawy.length, 1);
+    assert.equal((await admin.pobierz(`/api/sprawy?grupaId=${rodzic.id}`)).tresc.sprawy.length, 0);
+    assert.equal((await admin.zmien(`/api/sprawy/${sprawa.id}`, { grupaId: rodzic.id })).kod, 404);
+    assert.equal((await owner.zmien(`/api/sprawy/${sprawa.id}`, { grupaId: rodzic.id })).kod, 200);
+    assert.equal((await owner.pobierz(`/api/sprawy?grupaId=${dziecko.id}`)).tresc.sprawy.length, 0);
+    const stan = await owner.pobierz(`/api/sprawy/${sprawa.id}`);
+    assert.equal(stan.tresc.pisma[0].id, pismo.id); assert.equal(stan.tresc.terminy.length, 1);
+    assert.equal((await owner.pobierzPlik(dokument.id)).plik.toString(), 'Test grup');
+    assert.equal((await owner.zmien(`/api/sprawy/${sprawa.id}`, { grupaId: null })).kod, 200);
+    assert.equal((await owner.wyslij('/api/sprawy', { tytul: 'Błędna grupa', grupaId: 99999 })).kod, 404);
+  });
+  it('usuwa tylko puste grupy, chroniąc także sprawy innych właścicieli', async () => {
+    const admin = await zaloguj('usun-grupe@example.com', 'administrator');
+    const owner = await zaloguj('usun-owner@example.com');
+    const rodzic = (await admin.wyslij('/api/grupy', { nazwa: 'Rodzic' })).tresc.grupa;
+    const dziecko = (await admin.wyslij('/api/grupy', { nazwa: 'Dziecko', rodzicId: rodzic.id })).tresc.grupa;
+    const sprawa = (await owner.wyslij('/api/sprawy', { tytul: 'Zachowaj', grupaId: dziecko.id })).tresc.sprawa;
+    assert.equal((await admin.usun(`/api/grupy/${rodzic.id}`)).kod, 409);
+    assert.equal((await admin.usun(`/api/grupy/${dziecko.id}`)).kod, 409);
+    await owner.zmien(`/api/sprawy/${sprawa.id}`, { grupaId: null });
+    assert.equal((await admin.usun(`/api/grupy/${dziecko.id}`)).kod, 200);
+    assert.equal((await admin.usun(`/api/grupy/${rodzic.id}`)).kod, 200);
+    assert.equal((await owner.pobierz(`/api/sprawy/${sprawa.id}`)).kod, 200);
+  });
+  it('instaluje szablon CreationX tylko w pustym drzewie i nie nadpisuje późniejszych zmian', async () => {
+    const a = await zaloguj('szablon@example.com', 'administrator');
+    const pierwszy = await a.wyslij('/api/grupy/szablon-creationx', {});
+    assert.equal(pierwszy.kod, 201); assert.equal(pierwszy.tresc.grupy.length, 11);
+    assert.ok(pierwszy.tresc.grupy.some((g: { nazwa: string }) => g.nazwa === 'ZUS'));
+    assert.equal((await a.wyslij('/api/grupy/szablon-creationx', {})).kod, 409);
+    assert.equal((await a.pobierz('/api/grupy')).tresc.grupy.length, 11);
+  });
+});

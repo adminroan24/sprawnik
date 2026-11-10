@@ -26,6 +26,7 @@ entity "sprawa" as sprawa {
   * id : bigserial <<PK>>
   --
   * uzytkownik_id : bigint <<FK>>
+  grupa_id : bigint <<FK>>
   * tytul : text
   znak_wlasny : text
   organ : text
@@ -33,6 +34,26 @@ entity "sprawa" as sprawa {
   data_wszczecia : date
   opis : text
   * utworzono : timestamptz
+}
+
+entity "profil_firmy" as firma {
+  * id : smallint <<PK, singleton>>
+  --
+  * nazwa : text
+  * nip : text
+  * email : text
+  * telefon : text
+  * adres : text
+  * strona_www : text
+  * zmieniono : timestamptz
+}
+
+entity "grupa_spraw" as grupa {
+  * id : bigserial <<PK>>
+  --
+  rodzic_id : bigint <<FK>>
+  * nazwa : text
+  * kolejnosc : integer
 }
 
 entity "pismo" as pismo {
@@ -109,6 +130,8 @@ entity "dzien_wolny" as dzien {
   * nazwa : text
 }
 
+grupa      |o--o{ grupa       : podgrupy_bez_cykli
+grupa      |o--o{ sprawa      : klasyfikuje
 uzytkownik ||--o{ sprawa      : prowadzi
 uzytkownik ||--o{ dokument    : dodaje
 sprawa     ||--o{ pismo       : zawiera
@@ -133,6 +156,12 @@ note bottom of termin
   nie są przechowywane. Wynikają z porównania
   data_uplywu z datą bieżącą — zapisane
   zdezaktualizowałyby się nazajutrz.
+end note
+
+note bottom of firma
+  Jeden profil w instalacji, id = 1.
+  Grupy są wspólne, sprawy zachowują
+  dotychczasowego właściciela.
 end note
 
 @enduml

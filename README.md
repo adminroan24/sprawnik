@@ -224,3 +224,7 @@ przykładów pokazujących działanie mechanizmu.
 ### Skany wysyłane z panelu urządzenia
 
 Zakładka **Skany** (administrator) odbiera pliki z podkatalogów `epson/` i `kyocera/`, uruchamia lokalny OCR i proponuje własne sprawy po znakach spraw lub wcześniejszych pism. Przypisanie do pisma wymaga potwierdzenia; po imporcie oryginał trafia do osobnego archiwum. [Konfiguracja, zasady dopasowania i ograniczenia](docs/08-skrzynka-skanow-i-dopasowanie.md).
+
+### Profil firmy i drzewo spraw
+
+Administrator edytuje profil jednej organizacji oraz grupy i podgrupy w zakładce **Firma i drzewo**. W **Sprawach** dostępne są drzewo, wybór grupy przy rejestracji i przenoszenie istniejącej sprawy. Opcjonalny szablon CreationX działa dla pustego drzewa. [Instrukcja i migracja 004 dla istniejącej bazy](docs/09-firma-i-drzewo-spraw.md). To rozszerzenie poza pierwotnym zakresem F1–F8; własność spraw pozostaje bez zmian.

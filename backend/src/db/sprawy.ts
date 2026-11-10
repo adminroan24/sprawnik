@@ -5,6 +5,7 @@ export type StatusSprawy = 'w_toku' | 'zawieszona' | 'zakonczona';
 export type Sprawa = {
   id: number;
   uzytkownikId: number;
+  grupaId: number | null;
   tytul: string;
   znakWlasny: string | null;
   organ: string | null;
@@ -24,6 +25,7 @@ export type SprawaNaLiscie = Sprawa & {
 const kolumny = (prefiks = '') => `
   ${prefiks}id,
   ${prefiks}uzytkownik_id  AS "uzytkownikId",
+  ${prefiks}grupa_id AS "grupaId",
   ${prefiks}tytul,
   ${prefiks}znak_wlasny    AS "znakWlasny",
   ${prefiks}organ,
@@ -41,10 +43,12 @@ const kolumny = (prefiks = '') => `
  */
 export async function lista(
   uzytkownikId: number,
-  filtr: { szukaj?: string; status?: StatusSprawy } = {},
+  filtr: { szukaj?: string; status?: StatusSprawy; grupaId?: number; nieprzypisane?: boolean } = {},
 ): Promise<SprawaNaLiscie[]> {
   const { rows } = await pool.query<SprawaNaLiscie>(
-    `SELECT ${kolumny('s.')},
+    `WITH RECURSIVE podgrupy AS (SELECT id FROM grupa_spraw WHERE id=$4 UNION ALL
+       SELECT g.id FROM grupa_spraw g JOIN podgrupy p ON g.rodzic_id=p.id)
+     SELECT ${kolumny('s.')},
             count(DISTINCT p.id)::int AS "liczbaPism",
             count(DISTINCT t.id) FILTER (WHERE t.status = 'otwarty')::int AS "liczbaTerminowOtwartych",
             min(t.data_uplywu) FILTER (WHERE t.status = 'otwarty') AS "najblizszyTermin"
@@ -56,9 +60,11 @@ export async function lista(
                               OR coalesce(s.znak_wlasny, '') ILIKE '%' || $2 || '%'
                               OR coalesce(s.organ, '') ILIKE '%' || $2 || '%')
         AND ($3::status_sprawy IS NULL OR s.status = $3)
+        AND ($4::bigint IS NULL OR s.grupa_id IN (SELECT id FROM podgrupy))
+        AND (NOT $5::boolean OR s.grupa_id IS NULL)
       GROUP BY s.id
       ORDER BY s.utworzono DESC`,
-    [uzytkownikId, filtr.szukaj ?? null, filtr.status ?? null],
+    [uzytkownikId, filtr.szukaj ?? null, filtr.status ?? null, filtr.grupaId ?? null, filtr.nieprzypisane ?? false],
   );
   return rows;
 }
@@ -73,6 +79,7 @@ export async function znajdz(id: number): Promise<Sprawa | null> {
 
 export async function dodaj(dane: {
   uzytkownikId: number;
+  grupaId?: number | null;
   tytul: string;
   znakWlasny: string | null;
   organ: string | null;
@@ -80,17 +87,17 @@ export async function dodaj(dane: {
   opis: string | null;
 }): Promise<Sprawa> {
   const { rows } = await pool.query<Sprawa>(
-    `INSERT INTO sprawa (uzytkownik_id, tytul, znak_wlasny, organ, data_wszczecia, opis)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO sprawa (uzytkownik_id, tytul, znak_wlasny, organ, data_wszczecia, opis, grupa_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING ${kolumny()}`,
-    [dane.uzytkownikId, dane.tytul, dane.znakWlasny, dane.organ, dane.dataWszczecia, dane.opis],
+    [dane.uzytkownikId, dane.tytul, dane.znakWlasny, dane.organ, dane.dataWszczecia, dane.opis, dane.grupaId ?? null],
   );
   return rows[0]!;
 }
 
 export async function aktualizuj(
   id: number,
-  zmiany: Partial<Pick<Sprawa, 'tytul' | 'znakWlasny' | 'organ' | 'status' | 'dataWszczecia' | 'opis'>>,
+  zmiany: Partial<Pick<Sprawa, 'tytul' | 'znakWlasny' | 'organ' | 'status' | 'dataWszczecia' | 'opis' | 'grupaId'>>,
 ): Promise<Sprawa | null> {
   // Aktualizacja częściowa: pominięte pole zachowuje dotychczasową wartość,
   // co odróżnia „nie zmieniaj" od „wyczyść".
@@ -101,7 +108,8 @@ export async function aktualizuj(
        organ          = CASE WHEN $5::boolean THEN $6 ELSE organ END,
        status         = coalesce($7::status_sprawy, status),
        data_wszczecia = CASE WHEN $8::boolean THEN $9::date ELSE data_wszczecia END,
-       opis           = CASE WHEN $10::boolean THEN $11 ELSE opis END
+       opis           = CASE WHEN $10::boolean THEN $11 ELSE opis END,
+       grupa_id       = CASE WHEN $12::boolean THEN $13::bigint ELSE grupa_id END
      WHERE id = $1
      RETURNING ${kolumny()}`,
     [
@@ -112,6 +120,7 @@ export async function aktualizuj(
       zmiany.status ?? null,
       'dataWszczecia' in zmiany, zmiany.dataWszczecia ?? null,
       'opis' in zmiany, zmiany.opis ?? null,
+      'grupaId' in zmiany, zmiany.grupaId ?? null,
     ],
   );
   return rows[0] ?? null;

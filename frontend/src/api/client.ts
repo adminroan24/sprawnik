@@ -54,6 +54,7 @@ export const api = {
     zadanie<T>(sciezka, { method: 'POST', body: JSON.stringify(dane) }),
   zmien: <T,>(sciezka: string, dane: unknown) =>
     zadanie<T>(sciezka, { method: 'PATCH', body: JSON.stringify(dane) }),
+  usun: <T,>(sciezka: string) => zadanie<T>(sciezka, { method: 'DELETE' }),
   przeslijPlik: <T,>(pismoId: number, plik: File, rola = 'zalacznik') =>
     zadanie<T>(`/pisma/${pismoId}/dokumenty?nazwa=${encodeURIComponent(plik.name)}&rola=${encodeURIComponent(rola)}`, {
       method: 'POST', body: plik, headers: { 'Content-Type': 'application/octet-stream' },

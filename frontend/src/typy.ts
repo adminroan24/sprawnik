@@ -17,6 +17,7 @@ export type Uzytkownik = {
 
 export type Sprawa = {
   id: number;
+  grupaId: number | null;
   tytul: string;
   znakWlasny: string | null;
   organ: string | null;
@@ -120,3 +121,6 @@ export type UstawieniaTerminuSkanu = { zrodlo: 'reczny' | 'ocr'; fragment: strin
 export type TerminSkanu = { ustawienia: UstawieniaTerminuSkanu; dataPoczatkowa: string; dataUplywu: string;
   dataUplywuPrzedPrzesunieciem: string; ostrzezenie: string | null };
 export type PropozycjaTerminuSkanu = { ustawienia: UstawieniaTerminuSkanu; podstawa: 'wplyw' | 'inna' | 'data'; fragment: string };
+
+export type ProfilFirmy = { nazwa: string; nip: string; email: string; telefon: string; adres: string; stronaWww: string };
+export type GrupaSpraw = { id: number; rodzicId: number | null; nazwa: string; kolejnosc: number };

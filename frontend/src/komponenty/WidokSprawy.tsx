@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { FormularzPisma } from './FormularzPisma';
+import { sciezkaGrupy } from './grupy';
+import type { GrupaSpraw } from '../typy';
 import { Dokumenty } from './Dokumenty';
 import {
   Data,
@@ -16,6 +18,9 @@ import { nazwyKanalow, type KanalPisma } from '../typy';
 /** UC2 i UC11 — sprawa wraz z korespondencją, terminami i chronologią. */
 export function WidokSprawy({ id, wroc, administrator = false }: { id: number; wroc: () => void; administrator?: boolean }) {
   const [dane, setDane] = useState<SzczegolySprawy | null>(null);
+  const [grupy, setGrupy] = useState<GrupaSpraw[]>([]);
+  const [grupaId, setGrupaId] = useState('');
+  const [zapisGrupy, setZapisGrupy] = useState(false);
   const [reguly, setReguly] = useState<Regula[]>([]);
   const [blad, setBlad] = useState<unknown>(null);
   const [formularzWidoczny, setFormularzWidoczny] = useState(false);
@@ -25,12 +30,13 @@ export function WidokSprawy({ id, wroc, administrator = false }: { id: number; w
 
   async function wczytaj() {
     try {
-      const [szczegoly, listaRegul] = await Promise.all([
+      const [szczegoly, listaRegul, listaGrup] = await Promise.all([
         api.pobierz<SzczegolySprawy>(`/sprawy/${id}`),
         api.pobierz<{ reguly: Regula[] }>('/reguly'),
+        api.pobierz<{ grupy: GrupaSpraw[] }>('/grupy'),
       ]);
       setDane(szczegoly);
-      setReguly(listaRegul.reguly);
+      setReguly(listaRegul.reguly); setGrupy(listaGrup.grupy); setGrupaId(szczegoly.sprawa.grupaId ? String(szczegoly.sprawa.grupaId) : '');
       setBlad(null);
     } catch (problem) {
       setBlad(problem);
@@ -77,6 +83,13 @@ export function WidokSprawy({ id, wroc, administrator = false }: { id: number; w
 
       <Komunikat blad={blad} />
 
+      <form className="filtry" onSubmit={async e => {
+        e.preventDefault(); setZapisGrupy(true); setBlad(null);
+        try { await api.zmien(`/sprawy/${id}`, { grupaId: grupaId ? Number(grupaId) : null }); await wczytaj(); }
+        catch (problem) { setBlad(problem); } finally { setZapisGrupy(false); }
+      }}><label>Grupa sprawy <select disabled={zapisGrupy} value={grupaId} onChange={e => setGrupaId(e.target.value)}>
+        <option value="">Bez przypisanej grupy</option>{grupy.map(g => <option key={g.id} value={g.id}>{sciezkaGrupy(grupy, g.id)}</option>)}
+      </select></label><button disabled={zapisGrupy || grupaId === (sprawa.grupaId ? String(sprawa.grupaId) : '')}>Zapisz grupę sprawy</button></form>
       <label className="filtry">Stan sprawy
         <select value={sprawa.status} disabled={zmianaStatusu} onChange={async (e) => {
           const status = e.target.value as StatusSprawy;

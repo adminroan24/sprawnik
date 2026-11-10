@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import * as sprawyDb from '../db/sprawy.js';
+import { wymagaGrupy } from '../db/organizacja.js';
 import * as pismaDb from '../db/pisma.js';
 import { zarejestrujPismo, dodajTerminReczny } from '../services/rejestracja.js';
 import { terminySprawy } from '../services/przeglad.js';
@@ -13,6 +14,7 @@ sprawyRouter.use(wymagaZalogowania);
 
 const noweDaneSprawy = z.object({
   tytul: z.string().trim().min(1, 'Tytuł sprawy jest wymagany'),
+  grupaId: identyfikator.nullable().default(null),
   znakWlasny: tekstOpcjonalny,
   organ: tekstOpcjonalny,
   dataWszczecia: dataIso.nullable().default(null),
@@ -20,6 +22,7 @@ const noweDaneSprawy = z.object({
 });
 
 const zmianaSprawy = z.object({
+  grupaId: identyfikator.nullable().optional(),
   tytul: z.string().trim().min(1).optional(),
   znakWlasny: tekstOpcjonalny.optional(),
   organ: tekstOpcjonalny.optional(),
@@ -56,6 +59,8 @@ sprawyRouter.get('/', async (req, res) => {
     .object({
       szukaj: z.string().trim().min(1).optional(),
       status: z.enum(['w_toku', 'zawieszona', 'zakonczona']).optional(),
+      grupaId: identyfikator.optional(),
+      nieprzypisane: z.enum(['true','false']).default('false').transform(v => v === 'true'),
     })
     .parse(req.query);
 
@@ -65,6 +70,7 @@ sprawyRouter.get('/', async (req, res) => {
 /** UC1 — rejestracja sprawy. */
 sprawyRouter.post('/', async (req, res) => {
   const dane = noweDaneSprawy.parse(req.body);
+  await wymagaGrupy(dane.grupaId);
   const sprawa = await sprawyDb.dodaj({ uzytkownikId: zalogowany(req).id, ...dane });
   res.status(201).json({ sprawa });
 });
@@ -87,6 +93,7 @@ sprawyRouter.patch('/:id', async (req, res) => {
   const id = identyfikator.parse(req.params.id);
   await sprawaUzytkownika(id, zalogowany(req).id);
   const zmiany = zmianaSprawy.parse(req.body);
+  if ('grupaId' in zmiany) await wymagaGrupy(zmiany.grupaId ?? null);
   res.json({ sprawa: await sprawyDb.aktualizuj(id, zmiany) });
 });
 

@@ -39,7 +39,7 @@ export async function odtworzBaze(): Promise<void> {
 
 /** Usuwa dane dziedzinowe, zostawiając konfigurację wczytaną migracją. */
 export async function wyczyscDane(): Promise<void> {
-  await pool.query('TRUNCATE termin, dokument, pismo, sprawa, uzytkownik RESTART IDENTITY CASCADE');
+  await pool.query('TRUNCATE termin, dokument, pismo, sprawa, uzytkownik, grupa_spraw RESTART IDENTITY CASCADE');
 }
 
 export type Serwer = {
@@ -85,6 +85,7 @@ export function klient(bazowyAdres: string, token?: string) {
     pobierz: (sciezka: string) => zadanie('GET', sciezka),
     wyslij: (sciezka: string, dane: unknown) => zadanie('POST', sciezka, dane),
     zmien: (sciezka: string, dane: unknown) => zadanie('PATCH', sciezka, dane),
+    usun: (sciezka: string) => zadanie('DELETE', sciezka),
     przeslijPlik: async (pismoId: number, nazwa: string, plik: Buffer, rola = 'zalacznik') => {
       const response = await fetch(`${bazowyAdres}/api/pisma/${pismoId}/dokumenty?nazwa=${encodeURIComponent(nazwa)}&rola=${encodeURIComponent(rola)}`, {
         method: 'POST', headers: { 'Content-Type': 'application/octet-stream',
