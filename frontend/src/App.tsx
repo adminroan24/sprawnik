@@ -4,9 +4,10 @@ import { Logowanie } from './komponenty/Logowanie';
 import { ListaSpraw } from './komponenty/ListaSpraw';
 import { WidokSprawy } from './komponenty/WidokSprawy';
 import { PrzegladTerminow } from './komponenty/PrzegladTerminow';
+import { Reguly } from './komponenty/Reguly';
 import type { Uzytkownik } from './typy';
 
-type Widok = { nazwa: 'sprawy' } | { nazwa: 'sprawa'; id: number } | { nazwa: 'terminy' };
+type Widok = { nazwa: 'sprawy' } | { nazwa: 'sprawa'; id: number } | { nazwa: 'terminy' } | { nazwa: 'reguly' };
 
 export function App() {
   const [uzytkownik, setUzytkownik] = useState<Uzytkownik | null>(null);
@@ -42,11 +43,14 @@ export function App() {
             Terminy
           </button>
           <button
-            className={widok.nazwa !== 'terminy' ? 'aktywny' : ''}
+            className={widok.nazwa === 'sprawy' || widok.nazwa === 'sprawa' ? 'aktywny' : ''}
             onClick={() => setWidok({ nazwa: 'sprawy' })}
           >
             Sprawy
           </button>
+          {uzytkownik.rola === 'administrator' && <button
+            className={widok.nazwa === 'reguly' ? 'aktywny' : ''}
+            onClick={() => setWidok({ nazwa: 'reguly' })}>Reguły</button>}
         </nav>
         <div className="konto">
           <span>{uzytkownik.imieNazwisko}</span>
@@ -55,6 +59,7 @@ export function App() {
             onClick={() => {
               token.usun();
               setUzytkownik(null);
+              setWidok({ nazwa: 'terminy' });
             }}
           >
             Wyloguj
@@ -63,6 +68,7 @@ export function App() {
       </header>
 
       <main>
+        {widok.nazwa === 'reguly' && uzytkownik.rola === 'administrator' && <Reguly />}
         {widok.nazwa === 'terminy' && (
           <PrzegladTerminow otworzSprawe={(id) => setWidok({ nazwa: 'sprawa', id })} />
         )}

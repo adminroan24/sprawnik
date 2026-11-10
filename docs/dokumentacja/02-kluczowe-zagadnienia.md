@@ -269,16 +269,21 @@ akceptowalny; przy wdrożeniu produkcyjnym wymagałby uzupełnienia.
 
 ### Rozdzielenie obsługi dokumentów
 
-Pliki mają być przechowywane poza bazą danych, na wolumenie systemu plików,
+Pliki są przechowywane poza bazą danych, w katalogu magazynu,
 a w bazie pozostają ich metadane: nazwa pierwotna, nazwa w magazynie, typ,
-rozmiar i suma kontrolna. Tabela `dokument` jest na to przygotowana; samo
-przyjmowanie plików powstanie w kolejnym etapie prac. Rozważono zapis plików w bazie jako dane binarne — odrzucono
+rozmiar i suma kontrolna SHA-256. Przesyłanie i pobieranie obsługuje API,
+a interfejs umożliwia wybór pisma, dołączenie pliku oraz wyszukiwanie po nazwie
+i filtrowanie według pisma. Limit jednego pliku wynosi 10 MiB. Nazwa w magazynie
+jest generowana niezależnie od nazwy oryginalnej. Plik pobiera wyłącznie właściciel
+sprawy, po sprawdzeniu jego rozmiaru i sumy kontrolnej. Rozważono zapis plików w bazie jako dane binarne — odrzucono
 go, ponieważ powiększałby kopie zapasowe bazy o treść skanów i obciążał pulę
 połączeń przesyłaniem dużych obiektów.
 
-Rozdzielenie to wprowadza wymóg spójności między dwoma magazynami: usunięcie
-dokumentu musi objąć zarówno wiersz, jak i plik. Suma kontrolna pozwala wykryć,
-że plik w magazynie przestał odpowiadać opisowi w bazie.
+Jeżeli zapis metadanych nie powiedzie się, nowo utworzony plik jest usuwany.
+Kopia zapasowa musi obejmować bazę i pliki. Obecna wersja nie udostępnia usuwania
+dokumentów z poziomu interfejsu ani API. Przy przyszłym dodaniu tej operacji trzeba
+uwzględnić oba magazyny; awaria procesu pomiędzy zapisem pliku i metadanych może
+pozostawić plik bez wpisu w bazie.
 
 ### Odwzorowanie warstw w kodzie
 

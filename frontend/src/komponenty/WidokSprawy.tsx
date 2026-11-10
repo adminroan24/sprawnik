@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { FormularzPisma } from './FormularzPisma';
+import { Dokumenty } from './Dokumenty';
 import {
   Data,
   Komunikat,
@@ -9,7 +10,7 @@ import {
   nazwaStatusuSprawy,
   nazwaStatusuTerminu,
 } from './wspolne';
-import type { Pismo, Regula, SzczegolySprawy, Termin } from '../typy';
+import type { Pismo, Regula, SzczegolySprawy, Termin, StatusSprawy } from '../typy';
 
 /** UC2 i UC11 — sprawa wraz z korespondencją, terminami i chronologią. */
 export function WidokSprawy({ id, wroc }: { id: number; wroc: () => void }) {
@@ -18,6 +19,7 @@ export function WidokSprawy({ id, wroc }: { id: number; wroc: () => void }) {
   const [blad, setBlad] = useState<unknown>(null);
   const [formularzWidoczny, setFormularzWidoczny] = useState(false);
   const [wynikRejestracji, setWynikRejestracji] = useState<string | null>(null);
+  const [zmianaStatusu, setZmianaStatusu] = useState(false);
 
   async function wczytaj() {
     try {
@@ -72,6 +74,20 @@ export function WidokSprawy({ id, wroc }: { id: number; wroc: () => void }) {
       </header>
 
       <Komunikat blad={blad} />
+
+      <label className="filtry">Stan sprawy
+        <select value={sprawa.status} disabled={zmianaStatusu} onChange={async (e) => {
+          const status = e.target.value as StatusSprawy;
+          setZmianaStatusu(true);
+          try { await api.zmien(`/sprawy/${id}`, { status }); await wczytaj(); }
+          catch (problem) { setBlad(problem); }
+          finally { setZmianaStatusu(false); }
+        }}>
+          <option value="w_toku">W toku</option>
+          <option value="zawieszona">Zawieszona</option>
+          <option value="zakonczona">Zakończona</option>
+        </select>
+      </label>
 
       {wynikRejestracji && <div className="komunikat informacja">{wynikRejestracji}</div>}
 
@@ -192,6 +208,8 @@ export function WidokSprawy({ id, wroc }: { id: number; wroc: () => void }) {
           </tbody>
         </table>
       )}
+
+      <Dokumenty key={id} sprawaId={id} pisma={pisma} poDodaniu={wczytaj} />
 
       <h3>Chronologia sprawy</h3>
       {chronologia.length === 0 ? (

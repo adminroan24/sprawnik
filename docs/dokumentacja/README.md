@@ -1,5 +1,9 @@
 # Dokumentacja projektowa — pliki źródłowe
 
+Aktualizacja 10.11.2026: źródła opisują także przesyłanie i pobieranie plików,
+wyszukiwanie dokumentów oraz nowe formularze. PDF w katalogu `docs/` pozostaje
+migawką etapu pierwszego i wymaga ponownego złożenia przed oddaniem wersji końcowej.
+
 Dokumentacja prowadzona jest zgodnie z szablonem uczelnianym. Treść zapisano
 w plikach Markdown odpowiadających sekcjom szablonu, a dokument końcowy
 w formacie `.docx` powstaje z nich poleceniem:

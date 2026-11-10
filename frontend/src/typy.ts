@@ -41,6 +41,16 @@ export type Pismo = {
   opis: string | null;
 };
 
+export type Dokument = {
+  id: number;
+  pismoId: number;
+  nazwaOryginalna: string;
+  typMime: string;
+  rozmiarBajtow: number;
+  sumaKontrolna: string;
+  dodano: string;
+};
+
 export type Termin = {
   id: number;
   sprawaId: number;

@@ -48,7 +48,7 @@ panel statystyk, eksport kompletnych akt.
 Wymagania: Node.js 20+, Docker z wtyczką Compose.
 
 ```bash
-cp .env.example .env          # uzupełnij wartości
+cp .env.example backend/.env  # uzupełnij wartości; API odczytuje .env z backend/
 docker compose up -d db       # PostgreSQL na porcie 5435, migracje wykonują się przy pierwszym starcie
 
 cd backend && npm install && npm run dev     # API na porcie 3100
@@ -86,7 +86,25 @@ npm run test:api      # same trasy API
 Testy tras API odtwarzają schemat bazy testowej z plików `db/migrations/`, więc
 sprawdzają także kompletność migracji. Zabezpieczenie w kodzie nie pozwala ich
 uruchomić na bazie, której nazwa nie kończy się na `_test`. Inny adres bazy
-wskazuje się zmienną `TEST_DATABASE_URL`.
+wskazuje się zmienną `TEST_DATABASE_URL`. Testy plików korzystają z osobnego,
+tymczasowego katalogu w `/tmp`, niezależnie od magazynu dokumentów aplikacji.
+
+## Dokumenty i konfiguracja
+
+W widoku sprawy najpierw zarejestruj pismo, a następnie wybierz je w sekcji
+„Dokumenty” i dołącz plik. Maksymalny rozmiar pliku wynosi 10 MiB. Wykaz można
+przeszukiwać po nazwie dokumentu i filtrować według pisma. Pobranie pliku wymaga
+zalogowania oraz dostępu do sprawy. Dokument pojawia się także w chronologii.
+
+Pliki zapisywane są w `backend/uploads/`, jeżeli serwer uruchomiono z katalogu
+`backend/`. Zmienna `UPLOAD_DIR` pozwala wskazać inny katalog. Baza przechowuje
+metadane oraz SHA-256; przed pobraniem serwer sprawdza integralność pliku.
+Kopia zapasowa powinna obejmować bazę i magazyn plików. Katalog magazynu nie
+jest udostępniany jako publiczny katalog statyczny.
+
+Administrator definiuje reguły w zakładce „Reguły”. W widoku sprawy użytkownik
+może zmienić jej stan na „W toku”, „Zawieszona” lub „Zakończona”. Zakładanie
+kont nadal odbywa się poleceniem `npm run konto`.
 
 Te same kroki wykonuje GitHub Actions przy każdej zmianie w repozytorium —
 razem z kontrolą typów i budową wersji produkcyjnej interfejsu.
@@ -105,10 +123,11 @@ w środowisku lokalnym.
 
 ## Dokumentacja
 
-**Złożony dokument do podglądu:**
+**Migawka dokumentacji etapu pierwszego:**
 [dokumentacja-projektowa.pdf](docs/dokumentacja-projektowa.pdf) — otwiera się
-wprost w przeglądarce GitHuba. Wersją oddawaną jest plik `.docx` generowany
-z tych samych źródeł.
+wprost w przeglądarce GitHuba. Nie obejmuje jeszcze obsługi plików dodanej
+10.11.2026. Bieżący opis implementacji znajduje się w źródłach Markdown poniżej;
+przed przekazaniem końcowej dokumentacji należy ponownie złożyć DOCX i PDF.
 
 Dokumentacja projektowa prowadzona jest zgodnie z szablonem uczelnianym.
 Treść zapisano w plikach źródłowych Markdown, z których generowany jest
@@ -147,14 +166,16 @@ Materiał źródłowy poprzedzający dokumentację: [cel i założenia systemu](
 
 ## Stan implementacji
 
+[Weryfikacja ośmiu funkcji i wyniki testów z 10.11.2026](docs/06-weryfikacja-zakresu-2026-11-10.md).
+
 | Funkcja | Stan |
 |---------|------|
 | F1. Rejestracja i obsługa spraw | zaimplementowana |
 | F2. Korespondencja przychodząca i wychodząca | zaimplementowana |
-| F3. Dołączanie dokumentów | model danych gotowy, obsługa plików w przygotowaniu |
+| F3. Dołączanie dokumentów | przesyłanie i pobieranie plików, metadane i SHA-256; dostęp przez pismo i sprawę |
 | F4. Reguły terminów i ich wyznaczanie | zaimplementowana, pokryta testami |
 | F5. Prezentacja terminów i ostrzeganie | zaimplementowana |
-| F6. Wyszukiwanie i filtrowanie spraw | zaimplementowane |
+| F6. Wyszukiwanie i filtrowanie spraw oraz dokumentów | sprawy po tytule, znaku i organie; dokumenty po nazwie i piśmie |
 | F7. Chronologia sprawy | zaimplementowana |
 | F8. Uwierzytelnianie i uprawnienia | zaimplementowane; zakładanie kont poleceniem, bez panelu |
 

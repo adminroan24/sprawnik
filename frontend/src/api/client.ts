@@ -25,7 +25,7 @@ export const token = {
   usun: () => localStorage.removeItem(KLUCZ_TOKENU),
 };
 
-async function zadanie<T>(sciezka: string, opcje: RequestInit = {}): Promise<T> {
+async function odpowiedzApi(sciezka: string, opcje: RequestInit = {}): Promise<Response> {
   const zapisany = token.odczytaj();
   const odpowiedz = await fetch(`${BASE_URL}${sciezka}`, {
     ...opcje,
@@ -41,7 +41,11 @@ async function zadanie<T>(sciezka: string, opcje: RequestInit = {}): Promise<T> 
     throw new BladApi(odpowiedz.status, tresc.error ?? 'Nieznany błąd', tresc.szczegoly ?? []);
   }
 
-  return odpowiedz.json() as Promise<T>;
+  return odpowiedz;
+}
+
+async function zadanie<T>(sciezka: string, opcje: RequestInit = {}): Promise<T> {
+  return (await odpowiedzApi(sciezka, opcje)).json() as Promise<T>;
 }
 
 export const api = {
@@ -50,6 +54,11 @@ export const api = {
     zadanie<T>(sciezka, { method: 'POST', body: JSON.stringify(dane) }),
   zmien: <T,>(sciezka: string, dane: unknown) =>
     zadanie<T>(sciezka, { method: 'PATCH', body: JSON.stringify(dane) }),
+  przeslijPlik: <T,>(pismoId: number, plik: File) =>
+    zadanie<T>(`/pisma/${pismoId}/dokumenty?nazwa=${encodeURIComponent(plik.name)}`, {
+      method: 'POST', body: plik, headers: { 'Content-Type': 'application/octet-stream' },
+    }),
+  pobierzPlik: async (id: number) => (await odpowiedzApi(`/dokumenty/${id}/plik`)).blob(),
 };
 
 export type HealthResponse = {

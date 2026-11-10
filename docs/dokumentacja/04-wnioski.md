@@ -3,7 +3,10 @@
 Etap pierwszy zamyka się działającą aplikacją, a nie samym projektem na papierze.
 Zrealizowane zostały: rejestr spraw i korespondencji, automatyczne wyznaczanie
 terminów według reguł, ostrzeganie o terminach zbliżających się i przekroczonych,
-chronologia sprawy oraz uwierzytelnianie. Przejście całej ścieżki — od zalogowania,
+chronologia sprawy oraz uwierzytelnianie. Kolejny etap, z 10.11.2026, dodaje
+przesyłanie i pobieranie dokumentów, ich wyszukiwanie i filtrowanie, formularz
+reguł dla administratora oraz zmianę stanu sprawy w interfejsie.
+Przejście całej ścieżki — od zalogowania,
 przez rejestrację pisma, po odczytanie terminu, który z niego powstał — jest
 możliwe w interfejsie.
 
@@ -31,16 +34,18 @@ niezauważone aż do pierwszego terminu wypadającego w kwietniu.
 
 ## Ograniczenia obecnego stanu
 
-Dołączanie dokumentów ma gotowy model danych, ale obsługa plików nie została
-jeszcze zaimplementowana. Sesja bezstanowa nie pozwala unieważnić pojedynczego
+Pliki mają limit 10 MiB, są pobierane jako załączniki i nie mają podglądu w aplikacji.
+Wyszukiwanie dokumentów obejmuje ich nazwy i powiązanie z pismem; wyszukiwanie
+w treści plików pozostaje zakresem dodatkowym. Usuwanie dokumentów nie jest
+udostępnione. Sesja bezstanowa nie pozwala unieważnić pojedynczego
 tokenu przed jego wygaśnięciem. Kalendarz dni ustawowo wolnych wprowadzono do
 roku 2030 i wymaga uzupełniania. Zestaw reguł jest reprezentatywny, a nie
 kompletnym odwzorowaniem procedur administracyjnych.
 
 ## Kierunki dalszych prac
 
-Najbliższe: obsługa plików wraz z sumą kontrolną i powiązaniem dokumentu z pismem,
-panel zarządzania kontami dla administratora oraz cykliczna ocena stanu terminów
+Najbliższe: przegląd wersji przez promotora i uzgodnienie poprawek oraz terminu
+zaliczenia. Dalsze usprawnienia obejmują panel zarządzania kontami dla administratora oraz cykliczną ocenę stanu terminów
 wraz z powiadomieniem, dziś wykonywana przy odczycie. Dalsze, ujęte w zakresie
 dodatkowym: wyszukiwanie pełnotekstowe w treści dokumentów, panel statystyk
 i eksport kompletnych akt sprawy.
