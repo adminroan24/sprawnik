@@ -6,6 +6,9 @@ import { wymagaZalogowania, zalogowany } from '../middleware/uwierzytelnianie.js
 import { BladZadania, bladBrakZasobu, bladWalidacji } from '../middleware/errors.js';
 import { identyfikator, sprawaUzytkownika } from './wspolne.js';
 import { LIMIT_PLIKU, odczytajPlik, zapiszDokument } from '../services/dokumenty.js';
+import { rozpoznajDokument } from '../services/ocr.js';
+
+const rolaDokumentu = z.enum(['tresc', 'zalacznik', 'dowod_nadania', 'potwierdzenie_odbioru']);
 
 export const dokumentyRouter = Router();
 
@@ -15,6 +18,8 @@ dokumentyRouter.get('/sprawy/:id/dokumenty', wymagaZalogowania, async (req, res)
   const filtr = z.object({
     szukaj: z.string().trim().min(1).max(255).optional(),
     pismoId: identyfikator.optional(),
+    wTresci: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
+    rola: rolaDokumentu.optional(),
   }).parse(req.query);
   res.json({ dokumenty: await dokumentyDb.lista(id, filtr) });
 });
@@ -31,8 +36,22 @@ dokumentyRouter.post('/pisma/:id/dokumenty', wymagaZalogowania, async (req, _res
     .refine((value) => !/[\\/\x00-\x1f\x7f]/.test(value) && value !== '.' && value !== '..',
       'Nazwa pliku nie może zawierać ścieżki ani znaków sterujących').parse(req.query.nazwa);
   if (!Buffer.isBuffer(req.body) || req.body.length === 0) throw bladWalidacji('Plik jest pusty');
-  const dokument = await zapiszDokument(identyfikator.parse(req.params.id), zalogowany(req).id, nazwa, req.body);
+  const rola = rolaDokumentu.default('zalacznik').parse(req.query.rola);
+  const dokument = await zapiszDokument(identyfikator.parse(req.params.id), zalogowany(req).id, nazwa, req.body, rola);
   res.status(201).json({ dokument });
+});
+
+dokumentyRouter.get('/dokumenty/:id/ocr', wymagaZalogowania, async (req, res) => {
+  const id = identyfikator.parse(req.params.id);
+  if (!await dokumentyDb.znajdzDlaUzytkownika(id, zalogowany(req).id)) throw bladBrakZasobu('Dokument nie istnieje');
+  res.json({ ocr: await dokumentyDb.odczytajOcr(id) });
+});
+
+dokumentyRouter.post('/dokumenty/:id/ocr', wymagaZalogowania, async (req, res) => {
+  const id = identyfikator.parse(req.params.id);
+  const dokument = await dokumentyDb.znajdzDlaUzytkownika(id, zalogowany(req).id);
+  if (!dokument) throw bladBrakZasobu('Dokument nie istnieje');
+  res.json({ ocr: await rozpoznajDokument(dokument) });
 });
 
 dokumentyRouter.get('/dokumenty/:id/plik', wymagaZalogowania, async (req, res) => {

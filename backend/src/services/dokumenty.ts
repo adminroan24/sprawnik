@@ -13,7 +13,8 @@ function sciezka(nazwa: string) {
   return path.join(env.uploadDir, nazwa);
 }
 
-export async function zapiszDokument(pismoId: number, uzytkownikId: number, nazwa: string, plik: Buffer) {
+export async function zapiszDokument(pismoId: number, uzytkownikId: number, nazwa: string, plik: Buffer,
+  rola: dokumentyDb.RolaDokumentu = 'zalacznik') {
   const nazwaWMagazynie = randomUUID();
   const miejsce = sciezka(nazwaWMagazynie);
   await mkdir(env.uploadDir, { recursive: true, mode: 0o700 });
@@ -22,6 +23,7 @@ export async function zapiszDokument(pismoId: number, uzytkownikId: number, nazw
     return await dokumentyDb.dodaj({
       pismoId, uzytkownikId, nazwaOryginalna: nazwa, nazwaWMagazynie,
       rozmiarBajtow: plik.length, sumaKontrolna: createHash('sha256').update(plik).digest('hex'),
+      rola,
     });
   } catch (blad) {
     await unlink(miejsce).catch(() => undefined);

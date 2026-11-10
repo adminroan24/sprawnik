@@ -76,7 +76,7 @@ export function App() {
           <ListaSpraw otworzSprawe={(id) => setWidok({ nazwa: 'sprawa', id })} />
         )}
         {widok.nazwa === 'sprawa' && (
-          <WidokSprawy id={widok.id} wroc={() => setWidok({ nazwa: 'sprawy' })} />
+          <WidokSprawy id={widok.id} wroc={() => setWidok({ nazwa: 'sprawy' })} administrator={uzytkownik.rola === 'administrator'} />
         )}
       </main>
     </div>

@@ -318,3 +318,6 @@ td.akcje button { padding: 0.25rem 0.6rem; font-size: 0.85rem; }
 .doreczenie button { padding: 0.25rem 0.6rem; font-size: 0.85rem; }
 
 .wczytywanie { padding: 3rem; text-align: center; color: var(--tekst-drobny); }
+
+.akcje-dokumentu { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+.akcje-dokumentu button { font-size: 0.82rem; padding: 0.25rem 0.5rem; }

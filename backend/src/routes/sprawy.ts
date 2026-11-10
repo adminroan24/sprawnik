@@ -38,6 +38,9 @@ const nowePismo = z.object({
   opis: tekstOpcjonalny,
   regulaId: identyfikator.nullable().default(null),
   czynnosc: tekstOpcjonalny,
+  kanal: z.enum(['email', 'edoreczenia', 'epuap', 'poczta', 'osobiscie', 'inne']).nullable().default(null),
+  numerNadania: tekstOpcjonalny,
+  odpowiedzNaPismoId: identyfikator.nullable().default(null),
 });
 
 const recznyTermin = z.object({

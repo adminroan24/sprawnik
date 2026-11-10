@@ -12,7 +12,8 @@ import { after, before, beforeEach, describe, it } from 'node:test';
 import * as uzytkownicy from '../db/uzytkownicy.js';
 import { zahaszujHaslo } from '../services/uwierzytelnianie.js';
 import { createHash } from 'node:crypto';
-import { writeFile, unlink, rm } from 'node:fs/promises';
+import { writeFile, unlink, rm, readFile } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { env } from '../config/env.js';
 import * as dokumentyDb from '../db/dokumenty.js';
@@ -403,5 +404,175 @@ describe('obsługa spraw i konfiguracja', () => {
       assert.equal(aktywne.tresc.reguly.some((r: { id: number }) => r.id === 1), false);
       assert.equal(wszystkie.tresc.reguly.some((r: { id: number }) => r.id === 1), true);
     } finally { await pool.query('UPDATE regula_terminu SET aktywna = true WHERE id = 1'); }
+  });
+});
+
+describe('obieg korespondencji', () => {
+  it('łączy wpływ, przygotowanie odpowiedzi, nadanie, dowody i późniejszą odpowiedź', async () => {
+    const api = await zaloguj('obieg@example.com');
+    const { tresc } = await api.wyslij('/api/sprawy', { tytul: 'Pełny obieg pisma' });
+    const sciezka = `/api/sprawy/${tresc.sprawa.id}`;
+    const wplyw = await api.wyslij(`${sciezka}/pisma`, {
+      kierunek: 'przychodzace', rodzaj: 'Wezwanie', korespondent: 'Urząd', dataDoreczenia: '2026-11-02',
+    });
+    const odpowiedz = await api.wyslij(`${sciezka}/pisma`, {
+      kierunek: 'wychodzace', rodzaj: 'Wyjaśnienia', korespondent: 'Urząd',
+      odpowiedzNaPismoId: wplyw.tresc.pismo.id, kanal: 'edoreczenia',
+    });
+    assert.equal(odpowiedz.kod, 201);
+    assert.equal(odpowiedz.tresc.pismo.odpowiedzNaPismoId, wplyw.tresc.pismo.id);
+    assert.equal(odpowiedz.tresc.pismo.dataNadania, null);
+    const przed = await api.pobierz(sciezka);
+    assert.ok(przed.tresc.chronologia.some((z: { opis: string }) => z.opis.startsWith('Przygotowano:')));
+    const id = odpowiedz.tresc.pismo.id;
+    const nadanie = await api.zmien(`/api/pisma/${id}/nadanie`, {
+      dataNadania: '2026-11-03', kanal: 'edoreczenia', numerNadania: 'DEMO-NADANIE-123',
+    });
+    assert.equal(nadanie.kod, 200);
+    assert.equal(nadanie.tresc.pismo.numerNadania, 'DEMO-NADANIE-123');
+    const dowod = await api.przeslijPlik(id, 'dowod.xml', Buffer.from('<dowod>demo</dowod>'), 'dowod_nadania');
+    assert.equal(dowod.kod, 201);
+    assert.equal(dowod.tresc.dokument.rola, 'dowod_nadania');
+    const doreczenie = await api.zmien(`/api/pisma/${id}/doreczenie`, { dataDoreczenia: '2026-11-04' });
+    assert.equal(doreczenie.kod, 200);
+    await api.przeslijPlik(id, 'odbior.xml', Buffer.from('<odbior>demo</odbior>'), 'potwierdzenie_odbioru');
+    const kolejna = await api.wyslij(`${sciezka}/pisma`, {
+      kierunek: 'przychodzace', rodzaj: 'Odpowiedź urzędu', korespondent: 'Urząd',
+      dataDoreczenia: '2026-11-06', odpowiedzNaPismoId: id,
+    });
+    assert.equal(kolejna.kod, 201);
+    const wynik = await api.pobierz(sciezka);
+    const wydarzenia = wynik.tresc.chronologia as { data: string; opis: string }[];
+    assert.ok(wydarzenia.some((z) => z.data === '2026-11-03' && z.opis.startsWith('Wysłano:')));
+    assert.ok(wydarzenia.some((z) => z.data === '2026-11-04' && z.opis.startsWith('Potwierdzono doręczenie:')));
+    assert.ok(wydarzenia.some((z) => z.opis.startsWith('Dowód nadania:')));
+    const dowody = await api.pobierz(`${sciezka}/dokumenty?rola=dowod_nadania`);
+    assert.equal(dowody.tresc.dokumenty.length, 1);
+    assert.equal((await api.zmien(`/api/pisma/${id}/nadanie`, { dataNadania: '2026-11-05' })).kod, 400);
+  });
+
+  it('nie pozwala wiązać odpowiedzi z inną sprawą, także innego właściciela', async () => {
+    const a = await zaloguj('odpowiedz-a@example.com');
+    const b = await zaloguj('odpowiedz-b@example.com');
+    const pierwsza = await a.wyslij('/api/sprawy', { tytul: 'Pierwsza' });
+    const druga = await b.wyslij('/api/sprawy', { tytul: 'Druga' });
+    const pismo = await b.wyslij(`/api/sprawy/${druga.tresc.sprawa.id}/pisma`, {
+      kierunek: 'przychodzace', rodzaj: 'Prywatne pismo', korespondent: 'Instytucja',
+    });
+    const wynik = await a.wyslij(`/api/sprawy/${pierwsza.tresc.sprawa.id}/pisma`, {
+      kierunek: 'wychodzace', rodzaj: 'Odpowiedź', korespondent: 'Instytucja', odpowiedzNaPismoId: pismo.tresc.pismo.id,
+    });
+    assert.equal(wynik.kod, 400);
+    assert.equal((await a.pobierz(`/api/sprawy/${pierwsza.tresc.sprawa.id}`)).tresc.pisma.length, 0);
+    assert.equal((await a.zmien(`/api/pisma/${pismo.tresc.pismo.id}/nadanie`, { dataNadania: '2026-11-03' })).kod, 404);
+  });
+
+  it('zapisuje nadanie i wynikający z niego termin atomowo', async () => {
+    const api = await zaloguj('nadanie@example.com', 'administrator');
+    const sprawa = await api.wyslij('/api/sprawy', { tytul: 'Nadanie z terminem' });
+    const pismo = await api.wyslij(`/api/sprawy/${sprawa.tresc.sprawa.id}/pisma`, {
+      kierunek: 'wychodzace', rodzaj: 'Wniosek', korespondent: 'Instytucja',
+    });
+    const regula = await api.wyslij('/api/reguly', { nazwa: 'Test od nadania', liczbaDni: 3,
+      sposobLiczenia: 'dni_kalendarzowe', zdarzeniePoczatkowe: 'nadanie', przesuwajDniWolne: false });
+    const wynik = await api.zmien(`/api/pisma/${pismo.tresc.pismo.id}/nadanie`, {
+      dataNadania: '2026-11-03', regulaId: regula.tresc.regula.id,
+    });
+    assert.equal(wynik.kod, 200);
+    assert.equal(wynik.tresc.termin.dataUplywu, '2026-11-06');
+    assert.equal(wynik.tresc.termin.dataPoczatkowa, '2026-11-03');
+  });
+});
+
+const ocrDostepny = spawnSync('tesseract', ['--list-langs'], { encoding: 'utf8' });
+const maOcr = ocrDostepny.status === 0 && /\bpol\b/.test(ocrDostepny.stdout) && /\beng\b/.test(ocrDostepny.stdout);
+const maPdf = spawnSync('pdftoppm', ['-v']).status === 0 && spawnSync('pdfinfo', ['-v']).status === 0;
+
+describe('OCR dokumentów', () => {
+  async function przygotuj() {
+    const api = await zaloguj('ocr@example.com');
+    const sprawa = await api.wyslij('/api/sprawy', { tytul: 'Rozpoznawanie dokumentu' });
+    const pismo = await api.wyslij(`/api/sprawy/${sprawa.tresc.sprawa.id}/pisma`, {
+      kierunek: 'przychodzace', rodzaj: 'Pismo testowe', korespondent: 'Instytucja demonstracyjna',
+    });
+    return { api, sprawaId: sprawa.tresc.sprawa.id as number, pismoId: pismo.tresc.pismo.id as number };
+  }
+
+  it('odczytuje PNG, zachowuje wynik i wyszukuje po treści', { skip: !maOcr }, async () => {
+    const { api, sprawaId, pismoId } = await przygotuj();
+    const obraz = await readFile(new URL('./fixtures/skan-testowy.png', import.meta.url));
+    const dodany = await api.przeslijPlik(pismoId, 'skan.png', obraz, 'tresc');
+    const id = dodany.tresc.dokument.id;
+    const wynik = await api.wyslij(`/api/dokumenty/${id}/ocr`, {});
+    assert.equal(wynik.kod, 200);
+    assert.match(wynik.tresc.ocr.tekst, /SPRAWNIK/);
+    assert.match(wynik.tresc.ocr.tekst, /12345/);
+    assert.equal(wynik.tresc.ocr.liczbaStron, 1);
+    assert.equal((await api.pobierz(`/api/dokumenty/${id}/ocr`)).tresc.ocr.tekst, wynik.tresc.ocr.tekst);
+    const bez = await api.pobierz(`/api/sprawy/${sprawaId}/dokumenty?szukaj=12345`);
+    assert.equal(bez.tresc.dokumenty.length, 0);
+    const zTekstem = await api.pobierz(`/api/sprawy/${sprawaId}/dokumenty?szukaj=12345&wTresci=true`);
+    assert.equal(zTekstem.tresc.dokumenty.length, 1);
+    assert.equal(zTekstem.tresc.dokumenty[0].ocrGotowy, true);
+    const obcy = await zaloguj('ocr-obcy@example.com');
+    assert.equal((await obcy.pobierz(`/api/dokumenty/${id}/ocr`)).kod, 404);
+    assert.equal((await obcy.wyslij(`/api/dokumenty/${id}/ocr`, {})).kod, 404);
+  });
+
+  it('odczytuje skan PDF przez rasteryzację strony', { skip: !maOcr || !maPdf }, async () => {
+    const { api, pismoId } = await przygotuj();
+    const pdf = await readFile(new URL('./fixtures/skan-testowy.pdf', import.meta.url));
+    const dodany = await api.przeslijPlik(pismoId, 'skan.pdf', pdf);
+    const wynik = await api.wyslij(`/api/dokumenty/${dodany.tresc.dokument.id}/ocr`, {});
+    assert.equal(wynik.kod, 200);
+    assert.match(wynik.tresc.ocr.tekst, /SPRAWNIK/);
+    assert.equal(wynik.tresc.ocr.liczbaStron, 1);
+  });
+
+  it('odrzuca nieobsługiwany format i uszkodzony obraz bez utraty oryginału', async () => {
+    const { api, pismoId } = await przygotuj();
+    const dokument = await api.przeslijPlik(pismoId, 'tekst.txt', Buffer.from('Zwykły tekst'));
+    assert.equal((await api.wyslij(`/api/dokumenty/${dokument.tresc.dokument.id}/ocr`, {})).kod, 415);
+    const uszkodzony = await api.przeslijPlik(pismoId, 'uszkodzony.png', Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+    const odpowiedz = await api.wyslij(`/api/dokumenty/${uszkodzony.tresc.dokument.id}/ocr`, {});
+    assert.ok([422, 503].includes(odpowiedz.kod));
+    assert.equal((await api.pobierzPlik(uszkodzony.tresc.dokument.id)).kod, 200);
+  });
+});
+
+describe('skanowanie', () => {
+  it('udostępnia fizyczne skanowanie wyłącznie administratorowi', async () => {
+    const api = await zaloguj('skaner-user@example.com');
+    assert.equal((await api.pobierz('/api/skanery')).kod, 403);
+    assert.equal((await api.wyslij('/api/pisma/1/skan', { urzadzenie: 'test:0' })).kod, 403);
+  });
+
+  it('skanuje syntetyczną kartkę przez oficjalny backend testowy SANE', {
+    skip: spawnSync('scanimage', ['--version']).status !== 0,
+  }, async () => {
+    const api = await zaloguj('skaner-admin@example.com', 'administrator');
+    const sprawa = await api.wyslij('/api/sprawy', { tytul: 'Syntetyczny skan SANE' });
+    const pismo = await api.wyslij(`/api/sprawy/${sprawa.tresc.sprawa.id}/pisma`, {
+      kierunek: 'przychodzace', rodzaj: 'Pismo', korespondent: 'Test',
+    });
+    const stareWlaczenie = process.env.SCANNER_ENABLED;
+    const staraKonfiguracja = process.env.SANE_CONFIG_DIR;
+    process.env.SCANNER_ENABLED = 'true';
+    process.env.SANE_CONFIG_DIR = new URL('./fixtures/sane/', import.meta.url).pathname;
+    try {
+      const lista = await api.pobierz('/api/skanery');
+      assert.equal(lista.kod, 200);
+      assert.equal(lista.tresc.wlaczone, true);
+      assert.ok(lista.tresc.skanery.some((s: { id: string }) => s.id === 'test:0'));
+      const wynik = await api.wyslij(`/api/pisma/${pismo.tresc.pismo.id}/skan`, { urzadzenie: 'test:0', dpi: 150, rola: 'tresc' });
+      assert.equal(wynik.kod, 201);
+      assert.equal(wynik.tresc.dokument.rola, 'tresc');
+      const plik = await api.pobierzPlik(wynik.tresc.dokument.id);
+      assert.deepEqual([...plik.plik.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+      assert.equal((await api.wyslij(`/api/pisma/${pismo.tresc.pismo.id}/skan`, { urzadzenie: 'nieistniejacy', dpi: 150 })).kod, 400);
+    } finally {
+      if (stareWlaczenie === undefined) delete process.env.SCANNER_ENABLED; else process.env.SCANNER_ENABLED = stareWlaczenie;
+      if (staraKonfiguracja === undefined) delete process.env.SANE_CONFIG_DIR; else process.env.SANE_CONFIG_DIR = staraKonfiguracja;
+    }
   });
 });

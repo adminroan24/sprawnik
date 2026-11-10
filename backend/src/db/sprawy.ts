@@ -130,20 +130,32 @@ export type ZdarzenieChronologii = {
 
 export async function chronologia(sprawaId: number): Promise<ZdarzenieChronologii[]> {
   const { rows } = await pool.query<ZdarzenieChronologii>(
-    `SELECT coalesce(p.data_doreczenia, p.data_nadania, p.utworzono::date) AS data,
+    `SELECT CASE WHEN p.kierunek = 'wychodzace'
+              THEN coalesce(p.data_nadania, p.utworzono::date)
+              ELSE coalesce(p.data_doreczenia, p.data_nadania, p.utworzono::date) END AS data,
             'pismo'::text AS rodzaj,
             CASE p.kierunek
-              WHEN 'przychodzace' THEN 'Wpłynęło: '
-              ELSE 'Wysłano: '
-            END || p.rodzaj || ' — ' || p.korespondent AS opis
+              WHEN 'przychodzace' THEN CASE WHEN p.data_doreczenia IS NULL
+                THEN 'Zarejestrowano wpływ: ' ELSE 'Wpłynęło: ' END
+              ELSE CASE WHEN p.data_nadania IS NULL THEN 'Przygotowano: ' ELSE 'Wysłano: ' END
+            END || p.rodzaj || ' — ' || p.korespondent ||
+            CASE WHEN p.odpowiedz_na_pismo_id IS NULL THEN ''
+              ELSE ' (odpowiedź na #' || p.odpowiedz_na_pismo_id || ')' END AS opis
        FROM pismo p
       WHERE p.sprawa_id = $1
+      UNION ALL
+     SELECT p.data_doreczenia, 'pismo', 'Potwierdzono doręczenie: ' || p.rodzaj
+       FROM pismo p WHERE p.sprawa_id = $1 AND p.kierunek = 'wychodzace'
+        AND p.data_doreczenia IS NOT NULL
       UNION ALL
      SELECT t.data_uplywu, 'termin', 'Termin: ' || t.czynnosc
        FROM termin t
       WHERE t.sprawa_id = $1
       UNION ALL
-     SELECT d.dodano::date, 'dokument', 'Dokument: ' || d.nazwa_oryginalna
+     SELECT d.dodano::date, 'dokument', CASE d.rola
+              WHEN 'dowod_nadania' THEN 'Dowód nadania: '
+              WHEN 'potwierdzenie_odbioru' THEN 'Potwierdzenie odbioru: '
+              ELSE 'Dokument: ' END || d.nazwa_oryginalna
        FROM dokument d
        JOIN pismo p ON p.id = d.pismo_id
       WHERE p.sprawa_id = $1

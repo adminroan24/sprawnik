@@ -3,6 +3,8 @@
 export type Rola = 'uzytkownik' | 'administrator';
 export type StatusSprawy = 'w_toku' | 'zawieszona' | 'zakonczona';
 export type KierunekPisma = 'przychodzace' | 'wychodzace';
+export type KanalPisma = 'email' | 'edoreczenia' | 'epuap' | 'poczta' | 'osobiscie' | 'inne';
+export type RolaDokumentu = 'tresc' | 'zalacznik' | 'dowod_nadania' | 'potwierdzenie_odbioru';
 export type StatusTerminu = 'otwarty' | 'wykonany' | 'anulowany';
 export type StanTerminu = 'odlegly' | 'zblizajacy_sie' | 'przekroczony';
 
@@ -39,6 +41,9 @@ export type Pismo = {
   dataNadania: string | null;
   dataDoreczenia: string | null;
   opis: string | null;
+  kanal: KanalPisma | null;
+  numerNadania: string | null;
+  odpowiedzNaPismoId: number | null;
 };
 
 export type Dokument = {
@@ -49,6 +54,17 @@ export type Dokument = {
   rozmiarBajtow: number;
   sumaKontrolna: string;
   dodano: string;
+  rola: RolaDokumentu;
+  ocrGotowy: boolean;
+};
+
+export type WynikOcr = { tekst: string; jezyki: string; liczbaStron: number; wykonano: string };
+
+export const nazwyKanalow: Record<KanalPisma, string> = {
+  email: 'E-mail', edoreczenia: 'e-Doręczenia', epuap: 'ePUAP', poczta: 'Poczta', osobiscie: 'Osobiście', inne: 'Inny',
+};
+export const nazwyRolDokumentow: Record<RolaDokumentu, string> = {
+  tresc: 'Treść pisma', zalacznik: 'Załącznik', dowod_nadania: 'Dowód nadania', potwierdzenie_odbioru: 'Potwierdzenie odbioru',
 };
 
 export type Termin = {

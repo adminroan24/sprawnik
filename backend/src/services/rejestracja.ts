@@ -27,6 +27,9 @@ export type DanePisma = {
   regulaId: number | null;
   /** Nazwa czynności, której termin dotyczy. Domyślnie nazwa reguły. */
   czynnosc: string | null;
+  kanal?: pismaDb.KanalPisma | null;
+  numerNadania?: string | null;
+  odpowiedzNaPismoId?: number | null;
 };
 
 export type WynikRejestracji = {
@@ -48,6 +51,12 @@ export async function zarejestrujPismo(
   sprawaId: number,
   dane: DanePisma,
 ): Promise<WynikRejestracji> {
+  if (dane.odpowiedzNaPismoId != null) {
+    const poprzednie = await pismaDb.znajdz(dane.odpowiedzNaPismoId);
+    if (!poprzednie || poprzednie.sprawaId !== sprawaId) {
+      throw bladWalidacji('Pismo, na które odpowiadasz, musi należeć do tej samej sprawy');
+    }
+  }
   const regula = dane.regulaId === null ? null : await regulyDb.znajdz(dane.regulaId);
   if (dane.regulaId !== null && !regula) {
     throw bladBrakZasobu('Wskazana reguła terminu nie istnieje');
@@ -95,22 +104,19 @@ export async function uzupelnijDoreczenie(
   regulaId: number | null,
   czynnosc: string | null,
 ): Promise<WynikRejestracji> {
-  const pismo = await pismaDb.znajdz(pismoId);
-  if (!pismo) throw bladBrakZasobu('Pismo nie istnieje');
-  if (pismo.dataDoreczenia) {
-    throw bladWalidacji('Pismo ma już zapisaną datę doręczenia');
-  }
-  if (pismo.dataNadania && dataDoreczenia < pismo.dataNadania) {
-    throw bladWalidacji('Data doręczenia nie może poprzedzać daty nadania');
-  }
-
   const regula = regulaId === null ? null : await regulyDb.znajdz(regulaId);
   if (regulaId !== null && !regula) {
     throw bladBrakZasobu('Wskazana reguła terminu nie istnieje');
   }
 
   return wTransakcji(async (wykonawca) => {
-    const zaktualizowane = await pismaDb.ustawDateDoreczenia(pismoId, dataDoreczenia);
+    const pismo = await pismaDb.znajdz(pismoId, wykonawca, true);
+    if (!pismo) throw bladBrakZasobu('Pismo nie istnieje');
+    if (pismo.dataDoreczenia) throw bladWalidacji('Pismo ma już zapisaną datę doręczenia');
+    if (pismo.dataNadania && dataDoreczenia < pismo.dataNadania) {
+      throw bladWalidacji('Data doręczenia nie może poprzedzać daty nadania');
+    }
+    const zaktualizowane = await pismaDb.ustawDateDoreczenia(pismoId, dataDoreczenia, wykonawca);
     if (!zaktualizowane) throw bladBrakZasobu('Pismo nie istnieje');
 
     if (!regula) {
@@ -138,6 +144,31 @@ export async function uzupelnijDoreczenie(
     );
 
     return { pismo: zaktualizowane, termin, powodBrakuTerminu: null };
+  });
+}
+
+/** Wysłanie wcześniej przygotowanego pisma; rejestruje fakt wysyłki, nie wysyła korespondencji. */
+export async function potwierdzNadanie(pismoId: number, dane: {
+  dataNadania: string; kanal: pismaDb.KanalPisma | null; numerNadania: string | null;
+  regulaId: number | null; czynnosc: string | null;
+}): Promise<WynikRejestracji> {
+  const regula = dane.regulaId === null ? null : await regulyDb.znajdz(dane.regulaId);
+  if (dane.regulaId !== null && !regula) throw bladBrakZasobu('Reguła nie istnieje');
+  if (regula && regula.zdarzeniePoczatkowe !== 'nadanie') {
+    throw bladWalidacji('Przy nadaniu wybierz regułę liczoną od nadania; doręczenie potwierdza się osobno');
+  }
+  return wTransakcji(async (wykonawca) => {
+    const pismo = await pismaDb.znajdz(pismoId, wykonawca, true);
+    if (!pismo) throw bladBrakZasobu('Pismo nie istnieje');
+    if (pismo.kierunek !== 'wychodzace') throw bladWalidacji('Nadanie potwierdza się dla pisma wychodzącego');
+    if (pismo.dataNadania) throw bladWalidacji('Pismo ma już datę nadania');
+    if (pismo.dataDoreczenia && dane.dataNadania > pismo.dataDoreczenia) {
+      throw bladWalidacji('Nadanie nie może następować po doręczeniu');
+    }
+    const wynik = await pismaDb.ustawNadanie(pismoId, dane.dataNadania, dane.kanal, dane.numerNadania, wykonawca);
+    const termin = regula ? await zapiszTerminZReguly({ sprawaId: pismo.sprawaId, pismoId,
+      czynnosc: dane.czynnosc }, regula, dane.dataNadania, wykonawca) : null;
+    return { pismo: wynik, termin, powodBrakuTerminu: termin ? null : 'Nie wskazano reguły od nadania' };
   });
 }
 

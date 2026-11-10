@@ -11,15 +11,17 @@ import {
   nazwaStatusuTerminu,
 } from './wspolne';
 import type { Pismo, Regula, SzczegolySprawy, Termin, StatusSprawy } from '../typy';
+import { nazwyKanalow, type KanalPisma } from '../typy';
 
 /** UC2 i UC11 — sprawa wraz z korespondencją, terminami i chronologią. */
-export function WidokSprawy({ id, wroc }: { id: number; wroc: () => void }) {
+export function WidokSprawy({ id, wroc, administrator = false }: { id: number; wroc: () => void; administrator?: boolean }) {
   const [dane, setDane] = useState<SzczegolySprawy | null>(null);
   const [reguly, setReguly] = useState<Regula[]>([]);
   const [blad, setBlad] = useState<unknown>(null);
   const [formularzWidoczny, setFormularzWidoczny] = useState(false);
   const [wynikRejestracji, setWynikRejestracji] = useState<string | null>(null);
   const [zmianaStatusu, setZmianaStatusu] = useState(false);
+  const [odpowiedzNa, setOdpowiedzNa] = useState<Pismo | null>(null);
 
   async function wczytaj() {
     try {
@@ -68,7 +70,7 @@ export function WidokSprawy({ id, wroc }: { id: number; wroc: () => void }) {
             <Data wartosc={sprawa.dataWszczecia} />
           </p>
         </div>
-        <button onClick={() => setFormularzWidoczny((widoczny) => !widoczny)}>
+        <button onClick={() => { setOdpowiedzNa(null); setFormularzWidoczny((widoczny) => !widoczny); }}>
           {formularzWidoczny ? 'Anuluj' : 'Zarejestruj pismo'}
         </button>
       </header>
@@ -93,8 +95,11 @@ export function WidokSprawy({ id, wroc }: { id: number; wroc: () => void }) {
 
       {formularzWidoczny && (
         <FormularzPisma
+          key={odpowiedzNa?.id ?? 'nowe'}
           sprawaId={id}
           reguly={reguly}
+          pisma={pisma}
+          odpowiedzNa={odpowiedzNa}
           poZapisaniu={async (wynik) => {
             setFormularzWidoczny(false);
             setWynikRejestracji(
@@ -178,17 +183,28 @@ export function WidokSprawy({ id, wroc }: { id: number; wroc: () => void }) {
               <th>Znak</th>
               <th>Nadanie</th>
               <th>Doręczenie</th>
+              <th />
             </tr>
           </thead>
           <tbody>
             {pisma.map((pismo) => (
               <tr key={pismo.id}>
-                <td>{pismo.kierunek === 'przychodzace' ? 'przychodzące' : 'wychodzące'}</td>
-                <td>{pismo.rodzaj}</td>
+                <td>{pismo.kierunek === 'przychodzace' ? 'przychodzące' : 'wychodzące'}
+                  <div className="drobne">{pismo.dataDoreczenia ? 'Doręczone' :
+                    pismo.kierunek === 'wychodzace' ? (pismo.dataNadania ? 'Wysłane — oczekuje na doręczenie' : 'Przygotowywane') : 'Zarejestrowane'}</div>
+                </td>
+                <td>{pismo.rodzaj}
+                  {pismo.odpowiedzNaPismoId && <div className="drobne">Odpowiedź na #{pismo.odpowiedzNaPismoId}: {pisma.find((p) => p.id === pismo.odpowiedzNaPismoId)?.rodzaj}</div>}
+                </td>
                 <td>{pismo.korespondent}</td>
-                <td>{pismo.znakPisma ?? <span className="brak">—</span>}</td>
+                <td>{pismo.znakPisma ?? <span className="brak">—</span>}
+                  {pismo.kanal && <div className="drobne">{nazwyKanalow[pismo.kanal]}</div>}
+                  {pismo.numerNadania && <div className="drobne">Nadanie: {pismo.numerNadania}</div>}
+                </td>
                 <td>
-                  <Data wartosc={pismo.dataNadania} />
+                  {pismo.kierunek === 'wychodzace' && !pismo.dataNadania ?
+                    <PotwierdzenieNadania pismo={pismo} reguly={reguly} poZapisaniu={wczytaj} /> :
+                    <Data wartosc={pismo.dataNadania} />}
                 </td>
                 <td>
                   {pismo.dataDoreczenia ? (
@@ -203,13 +219,17 @@ export function WidokSprawy({ id, wroc }: { id: number; wroc: () => void }) {
                     />
                   )}
                 </td>
+                <td><button className="drugorzedny" onClick={() => {
+                  setOdpowiedzNa(pismo); setFormularzWidoczny(true);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}>Zarejestruj odpowiedź</button></td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
 
-      <Dokumenty key={id} sprawaId={id} pisma={pisma} poDodaniu={wczytaj} />
+      <Dokumenty key={id} sprawaId={id} pisma={pisma} poDodaniu={wczytaj} administrator={administrator} />
 
       <h3>Chronologia sprawy</h3>
       {chronologia.length === 0 ? (
@@ -226,6 +246,41 @@ export function WidokSprawy({ id, wroc }: { id: number; wroc: () => void }) {
       )}
     </section>
   );
+}
+
+function PotwierdzenieNadania({ pismo, reguly, poZapisaniu }: {
+  pismo: Pismo; reguly: Regula[]; poZapisaniu: () => Promise<void>;
+}) {
+  const [otwarte, setOtwarte] = useState(false);
+  const [data, setData] = useState('');
+  const [kanal, setKanal] = useState<KanalPisma | ''>(pismo.kanal ?? '');
+  const [numer, setNumer] = useState(pismo.numerNadania ?? '');
+  const [regula, setRegula] = useState('');
+  const [blad, setBlad] = useState<unknown>(null);
+  const [zapis, setZapis] = useState(false);
+  if (!otwarte) return <button className="drugorzedny" onClick={() => setOtwarte(true)}>Potwierdź nadanie</button>;
+  return <form className="doreczenie" onSubmit={async (e) => {
+    e.preventDefault(); setZapis(true); setBlad(null);
+    try {
+      await api.zmien(`/pisma/${pismo.id}/nadanie`, { dataNadania: data, kanal: kanal || null,
+        numerNadania: numer || null, regulaId: regula ? Number(regula) : null });
+      setOtwarte(false); await poZapisaniu();
+    } catch (problem) { setBlad(problem); } finally { setZapis(false); }
+  }}>
+    <Komunikat blad={blad} />
+    <input aria-label="Data nadania" type="date" required value={data} onChange={(e) => setData(e.target.value)} />
+    <select aria-label="Kanał nadania" value={kanal} onChange={(e) => setKanal(e.target.value as KanalPisma | '')}>
+      <option value="">Kanał nieokreślony</option>
+      {Object.entries(nazwyKanalow).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+    </select>
+    <input aria-label="Numer nadania" placeholder="Numer nadania" value={numer} onChange={(e) => setNumer(e.target.value)} />
+    <select aria-label="Reguła od nadania" value={regula} onChange={(e) => setRegula(e.target.value)}>
+      <option value="">Bez terminu od nadania</option>
+      {reguly.filter((r) => r.zdarzeniePoczatkowe === 'nadanie').map((r) => <option key={r.id} value={r.id}>{r.nazwa}</option>)}
+    </select>
+    <button type="submit" disabled={zapis}>{zapis ? 'Zapisywanie…' : 'Zapisz nadanie'}</button>
+    <button type="button" className="drugorzedny" onClick={() => setOtwarte(false)}>Anuluj</button>
+  </form>;
 }
 
 /**

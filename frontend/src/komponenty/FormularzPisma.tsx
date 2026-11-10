@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { api } from '../api/client';
 import { Komunikat, Pole } from './wspolne';
-import type { KierunekPisma, Regula, WynikRejestracjiPisma } from '../typy';
+import { nazwyKanalow, type KanalPisma, type Pismo, type KierunekPisma, type Regula, type WynikRejestracjiPisma } from '../typy';
 
 /**
  * UC3 i UC4 — rejestracja pisma.
@@ -13,20 +13,28 @@ export function FormularzPisma({
   sprawaId,
   reguly,
   poZapisaniu,
+  pisma = [],
+  odpowiedzNa = null,
 }: {
   sprawaId: number;
   reguly: Regula[];
   poZapisaniu: (wynik: WynikRejestracjiPisma) => void;
+  pisma?: Pismo[];
+  odpowiedzNa?: Pismo | null;
 }) {
-  const [kierunek, setKierunek] = useState<KierunekPisma>('przychodzace');
-  const [rodzaj, setRodzaj] = useState('');
-  const [korespondent, setKorespondent] = useState('');
+  const [kierunek, setKierunek] = useState<KierunekPisma>(odpowiedzNa ?
+    (odpowiedzNa.kierunek === 'przychodzace' ? 'wychodzace' : 'przychodzace') : 'przychodzace');
+  const [rodzaj, setRodzaj] = useState(odpowiedzNa ? 'Odpowiedź' : '');
+  const [korespondent, setKorespondent] = useState(odpowiedzNa?.korespondent ?? '');
   const [znakPisma, setZnakPisma] = useState('');
   const [dataNadania, setDataNadania] = useState('');
   const [dataDoreczenia, setDataDoreczenia] = useState('');
   const [regulaId, setRegulaId] = useState('');
   const [czynnosc, setCzynnosc] = useState('');
   const [blad, setBlad] = useState<unknown>(null);
+  const [kanal, setKanal] = useState<KanalPisma | ''>('');
+  const [numerNadania, setNumerNadania] = useState('');
+  const [poprzednieId, setPoprzednieId] = useState(odpowiedzNa ? String(odpowiedzNa.id) : '');
 
   const wybranaRegula = reguly.find((regula) => String(regula.id) === regulaId) ?? null;
 
@@ -42,6 +50,7 @@ export function FormularzPisma({
         dataDoreczenia: dataDoreczenia || null,
         regulaId: regulaId ? Number(regulaId) : null,
         czynnosc,
+        kanal: kanal || null, numerNadania, odpowiedzNaPismoId: poprzednieId ? Number(poprzednieId) : null,
       });
       poZapisaniu(wynik);
     } catch (problem) {
@@ -85,6 +94,18 @@ export function FormularzPisma({
             onChange={(e) => setDataDoreczenia(e.target.value)}
           />
         </Pole>
+      </div>
+
+      <div className="siatka">
+        <Pole etykieta="Kanał korespondencji"><select value={kanal} onChange={(e) => setKanal(e.target.value as KanalPisma | '')}>
+          <option value="">Nieokreślony</option>
+          {Object.entries(nazwyKanalow).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select></Pole>
+        <Pole etykieta="Numer nadania / identyfikator przesyłki"><input value={numerNadania} onChange={(e) => setNumerNadania(e.target.value)} /></Pole>
+        <Pole etykieta="Odpowiedź na pismo"><select value={poprzednieId} onChange={(e) => setPoprzednieId(e.target.value)}>
+          <option value="">Pismo rozpoczynające wątek / bez powiązania</option>
+          {pisma.map((pismo) => <option key={pismo.id} value={pismo.id}>#{pismo.id} {pismo.rodzaj} — {pismo.korespondent}</option>)}
+        </select></Pole>
       </div>
 
       <div className="siatka">
