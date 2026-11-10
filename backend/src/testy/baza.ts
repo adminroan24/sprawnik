@@ -85,5 +85,18 @@ export function klient(bazowyAdres: string, token?: string) {
     pobierz: (sciezka: string) => zadanie('GET', sciezka),
     wyslij: (sciezka: string, dane: unknown) => zadanie('POST', sciezka, dane),
     zmien: (sciezka: string, dane: unknown) => zadanie('PATCH', sciezka, dane),
+    przeslijPlik: async (pismoId: number, nazwa: string, plik: Buffer) => {
+      const response = await fetch(`${bazowyAdres}/api/pisma/${pismoId}/dokumenty?nazwa=${encodeURIComponent(nazwa)}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/octet-stream',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: new Uint8Array(plik),
+      });
+      return { kod: response.status, tresc: await response.json() };
+    },
+    pobierzPlik: async (id: number) => {
+      const response = await fetch(`${bazowyAdres}/api/dokumenty/${id}/plik`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      return { kod: response.status, naglowki: response.headers, plik: Buffer.from(await response.arrayBuffer()) };
+    },
   };
 }

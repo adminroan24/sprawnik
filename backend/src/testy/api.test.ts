@@ -11,6 +11,12 @@ import { strict as assert } from 'node:assert';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import * as uzytkownicy from '../db/uzytkownicy.js';
 import { zahaszujHaslo } from '../services/uwierzytelnianie.js';
+import { createHash } from 'node:crypto';
+import { writeFile, unlink, rm } from 'node:fs/promises';
+import path from 'node:path';
+import { env } from '../config/env.js';
+import * as dokumentyDb from '../db/dokumenty.js';
+import { pool } from '../db/pool.js';
 import {
   klient,
   odtworzBaze,
@@ -43,6 +49,9 @@ before(async () => {
 after(async () => {
   await serwer.zatrzymaj();
   await zamknijPule();
+  if (env.uploadDir.startsWith('/tmp/sprawnik-api-test-')) {
+    await rm(env.uploadDir, { recursive: true, force: true });
+  }
 });
 
 beforeEach(async () => {
@@ -285,5 +294,114 @@ describe('przegląd terminów', () => {
     assert.equal(tresc.terminy[0].status, 'wykonany');
     assert.equal(tresc.terminy[0].stan, null);
     assert.ok(tresc.terminy[0].dataWykonania);
+  });
+});
+
+describe('dokumenty', () => {
+  async function przygotuj() {
+    const api = await zaloguj('dokumenty@example.com');
+    const { tresc } = await api.wyslij('/api/sprawy', { tytul: 'Sprawa z dokumentami' });
+    const sprawaId = tresc.sprawa.id as number;
+    const wynik = await api.wyslij(`/api/sprawy/${sprawaId}/pisma`, {
+      kierunek: 'przychodzace', rodzaj: 'Decyzja', korespondent: 'Urząd demonstracyjny',
+    });
+    return { api, sprawaId, pismoId: wynik.tresc.pismo.id as number };
+  }
+
+  it('zapisuje plik, jego sumę kontrolną i chronologię; pobiera identyczną treść', async () => {
+    const { api, sprawaId, pismoId } = await przygotuj();
+    const plik = Buffer.from('Przykładowa treść dokumentu\n');
+    const { kod, tresc } = await api.przeslijPlik(pismoId, 'Zaświadczenie ćwiczeniowe.txt', plik);
+    assert.equal(kod, 201);
+    assert.equal(tresc.dokument.rozmiarBajtow, plik.length);
+    assert.equal(tresc.dokument.sumaKontrolna, createHash('sha256').update(plik).digest('hex'));
+    assert.equal(tresc.dokument.nazwaWMagazynie, undefined);
+    const pobrany = await api.pobierzPlik(tresc.dokument.id);
+    assert.equal(pobrany.kod, 200);
+    assert.deepEqual(pobrany.plik, plik);
+    assert.equal(pobrany.naglowki.get('content-type'), 'application/octet-stream');
+    assert.match(pobrany.naglowki.get('content-disposition')!, /^attachment;/);
+    assert.equal(pobrany.naglowki.get('x-content-type-options'), 'nosniff');
+    const sprawa = await api.pobierz(`/api/sprawy/${sprawaId}`);
+    assert.ok(sprawa.tresc.chronologia.some((z: { rodzaj: string; opis: string }) =>
+      z.rodzaj === 'dokument' && z.opis.includes('Zaświadczenie')));
+  });
+
+  it('wyszukuje dokumenty po nazwie i filtruje według pisma', async () => {
+    const { api, sprawaId, pismoId } = await przygotuj();
+    const drugie = await api.wyslij(`/api/sprawy/${sprawaId}/pisma`, {
+      kierunek: 'wychodzace', rodzaj: 'Wniosek', korespondent: 'Urząd demonstracyjny',
+    });
+    await api.przeslijPlik(pismoId, 'decyzja.pdf', Buffer.from('przyklad A'));
+    await api.przeslijPlik(drugie.tresc.pismo.id, 'wniosek.pdf', Buffer.from('przyklad B'));
+    const szukaj = await api.pobierz(`/api/sprawy/${sprawaId}/dokumenty?szukaj=DECYZJA`);
+    assert.equal(szukaj.tresc.dokumenty.length, 1);
+    assert.equal(szukaj.tresc.dokumenty[0].nazwaOryginalna, 'decyzja.pdf');
+    const filtr = await api.pobierz(`/api/sprawy/${sprawaId}/dokumenty?pismoId=${drugie.tresc.pismo.id}`);
+    assert.deepEqual(filtr.tresc.dokumenty.map((d: { nazwaOryginalna: string }) => d.nazwaOryginalna), ['wniosek.pdf']);
+    const razem = await api.pobierz(`/api/sprawy/${sprawaId}/dokumenty?szukaj=decyzja&pismoId=${drugie.tresc.pismo.id}`);
+    assert.equal(razem.tresc.dokumenty.length, 0);
+  });
+
+  it('odmawia dostępu do pliku, wykazu i przesyłania do cudzego pisma', async () => {
+    const { api, sprawaId, pismoId } = await przygotuj();
+    const { tresc } = await api.przeslijPlik(pismoId, 'prywatny.txt', Buffer.from('dane demonstracyjne'));
+    const obcy = await zaloguj('obcy@example.com', 'administrator');
+    assert.equal((await obcy.pobierzPlik(tresc.dokument.id)).kod, 404);
+    assert.equal((await obcy.pobierz(`/api/sprawy/${sprawaId}/dokumenty`)).kod, 404);
+    assert.equal((await obcy.przeslijPlik(pismoId, 'obcy.txt', Buffer.from('test'))).kod, 404);
+    assert.equal((await klient(serwer.adres).pobierzPlik(tresc.dokument.id)).kod, 401);
+    assert.equal((await klient(serwer.adres).przeslijPlik(pismoId, 'brak-konta.txt', Buffer.from('test'))).kod, 401);
+  });
+
+  it('odrzuca pusty plik, zbyt duży plik i nazwę zawierającą ścieżkę', async () => {
+    const { api, sprawaId, pismoId } = await przygotuj();
+    assert.equal((await api.przeslijPlik(pismoId, 'pusty.txt', Buffer.alloc(0))).kod, 400);
+    assert.equal((await api.przeslijPlik(pismoId, '../poza-magazynem', Buffer.from('test'))).kod, 400);
+    assert.equal((await api.przeslijPlik(pismoId, 'duzy.bin', Buffer.alloc(10 * 1024 * 1024 + 1))).kod, 413);
+    const lista = await api.pobierz(`/api/sprawy/${sprawaId}/dokumenty`);
+    assert.equal(lista.tresc.dokumenty.length, 0);
+  });
+
+  it('dwa pliki o tej samej nazwie nie nadpisują się', async () => {
+    const { api, pismoId } = await przygotuj();
+    const a = await api.przeslijPlik(pismoId, 'decyzja.pdf', Buffer.from('pierwszy'));
+    const b = await api.przeslijPlik(pismoId, 'decyzja.pdf', Buffer.from('drugi'));
+    assert.notEqual(a.tresc.dokument.id, b.tresc.dokument.id);
+    assert.equal((await api.pobierzPlik(a.tresc.dokument.id)).plik.toString(), 'pierwszy');
+    assert.equal((await api.pobierzPlik(b.tresc.dokument.id)).plik.toString(), 'drugi');
+  });
+
+  it('wykrywa zmianę oraz brak pliku w magazynie', async () => {
+    const { api, pismoId } = await przygotuj();
+    const { tresc } = await api.przeslijPlik(pismoId, 'kontrola.txt', Buffer.from('oryginal'));
+    const dokument = await dokumentyDb.znajdzDlaUzytkownika(tresc.dokument.id, 1);
+    assert.ok(dokument);
+    const miejsce = path.join(env.uploadDir, dokument.nazwaWMagazynie);
+    await writeFile(miejsce, 'zmieniony');
+    assert.equal((await api.pobierzPlik(dokument.id)).kod, 409);
+    await unlink(miejsce);
+    assert.equal((await api.pobierzPlik(dokument.id)).kod, 410);
+  });
+});
+
+describe('obsługa spraw i konfiguracja', () => {
+  it('zmienia status sprawy i uwzględnia go w filtrze rejestru', async () => {
+    const api = await zaloguj('status@example.com');
+    const { tresc } = await api.wyslij('/api/sprawy', { tytul: 'Sprawa zamykana' });
+    assert.equal((await api.zmien(`/api/sprawy/${tresc.sprawa.id}`, { status: 'zakonczona' })).kod, 200);
+    assert.equal((await api.pobierz('/api/sprawy?status=w_toku')).tresc.sprawy.length, 0);
+    assert.equal((await api.pobierz('/api/sprawy?status=zakonczona')).tresc.sprawy.length, 1);
+  });
+
+  it('parametr wszystkie=false wyklucza nieaktywne reguły', async () => {
+    const api = await zaloguj('reguly@example.com');
+    await pool.query('UPDATE regula_terminu SET aktywna = false WHERE id = 1');
+    try {
+      const aktywne = await api.pobierz('/api/reguly?wszystkie=false');
+      const wszystkie = await api.pobierz('/api/reguly?wszystkie=true');
+      assert.equal(aktywne.tresc.reguly.some((r: { id: number }) => r.id === 1), false);
+      assert.equal(wszystkie.tresc.reguly.some((r: { id: number }) => r.id === 1), true);
+    } finally { await pool.query('UPDATE regula_terminu SET aktywna = true WHERE id = 1'); }
   });
 });

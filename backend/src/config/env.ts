@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import path from 'node:path';
 
 function required(name: string): string {
   const value = process.env[name];
@@ -14,4 +15,5 @@ export const env = {
   jwtSecret: required('JWT_SECRET'),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '7d',
   nodeEnv: process.env.NODE_ENV ?? 'development',
+  uploadDir: path.resolve(process.env.UPLOAD_DIR ?? 'uploads'),
 } as const;

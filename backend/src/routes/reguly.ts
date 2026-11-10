@@ -10,7 +10,8 @@ regulyRouter.use(wymagaZalogowania);
 
 /** Reguły widoczne są dla każdego zalogowanego — bez nich nie da się zarejestrować pisma. */
 regulyRouter.get('/', async (req, res) => {
-  const { wszystkie } = z.object({ wszystkie: z.coerce.boolean().default(false) }).parse(req.query);
+  const { wszystkie } = z.object({ wszystkie: z.enum(['true', 'false']).default('false')
+    .transform((value) => value === 'true') }).parse(req.query);
   res.json({ reguly: await regulyDb.lista(!wszystkie) });
 });
 

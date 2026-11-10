@@ -7,6 +7,7 @@ import { sprawyRouter } from './routes/sprawy.js';
 import { pismaRouter } from './routes/pisma.js';
 import { terminyRouter } from './routes/terminy.js';
 import { regulyRouter } from './routes/reguly.js';
+import { dokumentyRouter } from './routes/dokumenty.js';
 import { errorHandler, notFound } from './middleware/errors.js';
 
 // Komunikaty walidacji w języku interfejsu — domyślne są angielskie i trafiłyby
@@ -22,6 +23,7 @@ export function createApp() {
   // żądanie i walidują wejście, obsługę merytoryczną zlecają warstwie dziedzinowej.
   app.use('/api', healthRouter);
   app.use('/api', uwierzytelnianieRouter);
+  app.use('/api', dokumentyRouter);
   app.use('/api/sprawy', sprawyRouter);
   app.use('/api/pisma', pismaRouter);
   app.use('/api/terminy', terminyRouter);

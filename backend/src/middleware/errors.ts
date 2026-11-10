@@ -30,6 +30,11 @@ export function errorHandler(
   res: Response,
   _next: NextFunction,
 ): void {
+  if (typeof err === 'object' && err !== null && 'type' in err && err.type === 'entity.too.large') {
+    res.status(413).json({ error: 'Przekroczono dozwolony rozmiar żądania' });
+    return;
+  }
+
   if (err instanceof BladZadania) {
     res.status(err.kod).json({ error: err.message });
     return;
