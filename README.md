@@ -232,3 +232,7 @@ Administrator edytuje profil jednej organizacji oraz grupy i podgrupy w zakładc
 ### Przypisanie skanu z terminala
 
 Polecenie `npm run przypisz-skan` w katalogu `backend/` obsługuje istniejącą lub nową sprawę i pismo, zachowując datę wpływu oraz OCR. Domyślnie pokazuje plan; `--zapisz` wykonuje import. [Format planu, prywatna sesja i wznowienie](docs/10-przypisywanie-skanow-skryptem.md).
+
+### Stały odbiór skanów i autostart
+
+Opcja `SCAN_WATCH_ENABLED=true` uruchamia kolejkę lokalnego OCR. Nowe skany pojawiają się automatycznie, a wynik odczytu zostaje na dysku po restarcie. Przypisanie do sprawy, data wpływu i termin wymagają sprawdzenia przez użytkownika. [Działanie kolejki i usługi systemd](docs/11-stala-obsluga-skanow.md).

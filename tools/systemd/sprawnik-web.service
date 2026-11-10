@@ -1,0 +1,18 @@
+[Unit]
+Description=Sprawnik — lokalny interfejs
+Wants=sprawnik-api.service
+After=sprawnik-api.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+WorkingDirectory=%h/projekty/sprawnik/frontend
+EnvironmentFile=%h/.config/sprawnik/uslugi.env
+ExecStart=/usr/local/bin/node %h/projekty/sprawnik/frontend/node_modules/vite/bin/vite.js --configLoader native --host 127.0.0.1 --port 5180 --strictPort
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+UMask=0077
+
+[Install]
+WantedBy=default.target

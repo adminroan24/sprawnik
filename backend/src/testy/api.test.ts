@@ -16,6 +16,7 @@ import { writeFile, unlink, rm, readFile, mkdtemp, mkdir, utimes, symlink, readd
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { env } from '../config/env.js';
+import { przetworzKolejkeSkanow } from '../services/skany.js';
 import * as dokumentyDb from '../db/dokumenty.js';
 import { pool } from '../db/pool.js';
 import {
@@ -606,6 +607,55 @@ describe('skrzynka skanów i dopasowanie spraw', () => {
     const p = await api.wyslij(`/api/sprawy/${s.tresc.sprawa.id}/pisma`, { kierunek: 'przychodzace', rodzaj: 'Pismo', korespondent: 'Test', dataDoreczenia: zData ? '2026-11-06' : null });
     return { api, sprawaId: s.tresc.sprawa.id, pismoId: p.tresc.pismo.id };
   }
+  it('kolejka odczytuje stabilny skan bez tworzenia spraw lub dat, a zapis OCR przeżywa nowy proces', { skip: !maOcr }, async () => {
+    const { api, sprawaId } = await przygotuj();
+    const obcy = await zaloguj('inny-admin-kolejka@example.com', 'administrator');
+    const user = await zaloguj('zwykly-kolejka@example.com');
+    const id = await skan();
+    await skan('kyocera', 'w-trakcie.png', false);
+    assert.equal((await api.pobierz(`/api/skany/${id}/rozpoznanie`)).tresc.rozpoznanie, null);
+    await przetworzKolejkeSkanow();
+    const gotowy = (await api.pobierz(`/api/skany/${id}/rozpoznanie`)).tresc.rozpoznanie;
+    assert.match(gotowy.tekst, /SPRAWNIK/);
+    assert.equal(gotowy.proponowanaSprawaId, sprawaId);
+    assert.equal((await obcy.pobierz(`/api/skany/${id}/rozpoznanie`)).tresc.rozpoznanie.propozycje.length, 0);
+    assert.equal((await user.pobierz(`/api/skany/${id}/rozpoznanie`)).kod, 403);
+    assert.equal((await klient(serwer.adres).pobierz(`/api/skany/${id}/rozpoznanie`)).kod, 401);
+    const lista = (await api.pobierz('/api/skany')).tresc.skany;
+    assert.equal(lista.find((s: any) => s.id === id).stanOcr, 'gotowe');
+    assert.equal(lista.find((s: any) => s.id === id).dataWplywu, null);
+    assert.equal(lista.find((s: any) => s.id === id).terminOdpowiedzi, null);
+    assert.equal(lista.find((s: any) => s.nazwa === 'w-trakcie.png').stanOcr, 'oczekuje');
+    assert.equal((await api.pobierz('/api/sprawy')).tresc.sprawy.length, 1);
+    assert.equal((await api.pobierz(`/api/sprawy/${sprawaId}/dokumenty`)).tresc.dokumenty.length, 0);
+    const ocrFolder = path.join(folder, 'archive/ocr-skanow');
+    const ocrPlik = path.join(ocrFolder, (await readdir(ocrFolder))[0]!);
+    assert.equal((await stat(ocrPlik)).mode & 0o077, 0);
+    // Nowy proces nie ma pamięci podręcznej ani programu OCR w PATH.
+    const proces = spawnSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e',
+      "import {przetworzKolejkeSkanow,listaSkanow} from './src/services/skany.ts'; await przetworzKolejkeSkanow(); console.log(JSON.stringify(await listaSkanow()));"],
+      { encoding: 'utf8', timeout: 20000, env: { ...process.env, PATH: '/nieistniejacy-katalog' } });
+    assert.equal(proces.status, 0, proces.stderr);
+    assert.equal(JSON.parse(proces.stdout).find((s: any) => s.id === id).stanOcr, 'gotowe');
+    // Podmieniony plik nie otrzymuje odczytu poprzedniej zawartości.
+    await writeFile(path.join(folder, 'inbox/epson/skan.png'), Buffer.from('inna zawartosc'));
+    await utimes(path.join(folder, 'inbox/epson/skan.png'), new Date(0), new Date(0));
+    assert.equal((await api.pobierz(`/api/skany/${id}/rozpoznanie`)).tresc.rozpoznanie, null);
+  });
+  it('błędny skan nie blokuje pozostałych, a błąd nie powoduje ciasnej pętli ponowień', { skip: !maOcr }, async () => {
+    const { api } = await przygotuj();
+    const id = await skan('epson', 'bledny.png');
+    await writeFile(path.join(folder, 'inbox/epson/bledny.png'), Buffer.from('nie obraz'));
+    await utimes(path.join(folder, 'inbox/epson/bledny.png'), new Date(0), new Date(0));
+    const dobry = await skan('kyocera', 'dobry.png');
+    await przetworzKolejkeSkanow();
+    const lista = (await api.pobierz('/api/skany')).tresc.skany;
+    assert.equal(lista.find((s: any) => s.id === id).stanOcr, 'blad');
+    assert.equal(lista.find((s: any) => s.id === dobry).stanOcr, 'gotowe');
+    const przed = (await readdir(path.join(folder, 'archive/ocr-skanow'))).length;
+    await przetworzKolejkeSkanow();
+    assert.equal((await readdir(path.join(folder, 'archive/ocr-skanow'))).length, przed);
+  });
   it('zapisuje datę wpływu na dysku przed wyborem sprawy i odczytuje ją przy kolejnym pobraniu listy', async () => {
     const api = await zaloguj('data-skanu@example.com', 'administrator');
     const user = await zaloguj('data-skanu-user@example.com');
@@ -774,7 +824,7 @@ describe('skrzynka skanów i dopasowanie spraw', () => {
     assert.match((await api.pobierz(`/api/dokumenty/${wynik.tresc.dokument.id}/ocr`)).tresc.ocr.tekst, /SPRAWNIK/);
     assert.deepEqual((await api.pobierzPlik(wynik.tresc.dokument.id)).plik, await readFile(new URL('./fixtures/skan-testowy.png', import.meta.url)));
     assert.equal((await api.pobierz('/api/skany')).tresc.skany.length, 0);
-    assert.equal((await readdir(path.join(folder, 'archive'))).length, 2);
+    assert.equal((await readdir(path.join(folder, 'archive'), { withFileTypes: true })).filter(p => p.isFile()).length, 2);
     assert.equal((await api.wyslij(`/api/skany/${id}/import`, { pismoId })).kod, 404);
     const kopia = await skan('kyocera', 'kopia.png');
     const ponownie = await api.wyslij(`/api/skany/${kopia}/import`, { pismoId, rola: 'tresc' });

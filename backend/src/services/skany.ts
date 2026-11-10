@@ -18,6 +18,8 @@ import * as dokumentyDb from '../db/dokumenty.js';
 const ZRODLA = ['epson', 'kyocera'] as const;
 const aktywneImporty = new Set<string>();
 const cache = new Map<string, Awaited<ReturnType<typeof odczytajTekstPliku>>>();
+const rozpoznawane = new Map<string, Promise<Awaited<ReturnType<typeof odczytajTekstPliku>>>>();
+const statusy = new Map<string, { odcisk: string; stan: 'oczekuje' | 'przetwarzanie' | 'gotowe' | 'blad'; ponowPo: number }>();
 const katalog = () => path.resolve(process.env.SCAN_INBOX_DIR ?? path.join(env.uploadDir, '..', 'skany'));
 const archiwum = () => path.resolve(process.env.SCAN_ARCHIVE_DIR ?? path.join(katalog(), '..', 'skany-archiwum'));
 const hash = (plik: Buffer) => createHash('sha256').update(plik).digest('hex');
@@ -65,6 +67,7 @@ export async function listaSkanow() {
       const metadane = await metadaneSkanu(id, stat);
       skany.push({ id, dataWplywu: metadane?.dataWplywu ?? null, terminOdpowiedzi: metadane?.terminOdpowiedzi ?? null,
         nazwa: plik.name, zrodlo, rozmiarBajtow: stat.size, zmieniono: stat.mtime.toISOString(),
+        stanOcr: statusy.get(id)?.odcisk === odcisk(stat) ? statusy.get(id)!.stan : 'oczekuje',
         gotowy: Date.now() - stat.mtimeMs >= 10_000, zaDuzy: stat.size > LIMIT_PLIKU });
     }
   }
@@ -152,17 +155,75 @@ async function przeniesTerminDoSprawy(pismoId: number, termin: TerminZeSkanu) {
   });
 }
 
-export async function rozpoznajSkan(id: string, uzytkownikId: number) {
-  const skan = await odczytaj(id);
-  let wynik = cache.get(skan.sha256);
+/** Wynik OCR jest wspólny, dopasowania spraw są wyliczane osobno dla właściciela. */
+async function wynikOcr(skan: Awaited<ReturnType<typeof odczytaj>>, uruchom: boolean) {
+  const zapis = path.join(archiwum(), 'ocr-skanow', skan.sha256 + '.json');
+  let wynik = cache.get(zapis);
   if (!wynik) {
-    wynik = await odczytajTekstPliku(skan.plik);
-    if (cache.size >= 30) cache.delete(cache.keys().next().value!);
-    cache.set(skan.sha256, wynik);
+    try {
+      const dane = JSON.parse(await readFile(zapis, 'utf8'));
+      if (dane.sha256 === skan.sha256 && typeof dane.tekst === 'string' && dane.tekst.length > 0 &&
+          dane.tekst.length <= 1_000_000 && Number.isInteger(dane.liczbaStron) && dane.liczbaStron >= 1 && dane.liczbaStron <= 20) {
+        wynik = { tekst: dane.tekst, jezyki: 'pol+eng', liczbaStron: dane.liczbaStron };
+      }
+    } catch { /* Brak lub uszkodzenie zapisu oznacza konieczność ponownego OCR. */ }
   }
+  if (!wynik && !uruchom) return null;
+  if (!wynik) {
+    let zadanie = rozpoznawane.get(zapis);
+    if (!zadanie) {
+      zadanie = (async () => {
+        const wynik = await odczytajTekstPliku(skan.plik);
+        await mkdir(path.dirname(zapis), { recursive: true, mode: 0o700 });
+        const tmp = zapis + '.' + randomUUID();
+        try {
+          await writeFile(tmp, JSON.stringify({ ...wynik, sha256: skan.sha256 }), { flag: 'wx', mode: 0o600 });
+          await rename(tmp, zapis);
+        } finally { await unlink(tmp).catch(() => undefined); }
+        return wynik;
+      })();
+      rozpoznawane.set(zapis, zadanie);
+    }
+    try { wynik = await zadanie; }
+    finally { if (rozpoznawane.get(zapis) === zadanie) rozpoznawane.delete(zapis); }
+  }
+  if (cache.size >= 30) cache.delete(cache.keys().next().value!);
+  cache.set(zapis, wynik);
+  statusy.set(Buffer.from(`${skan.zrodlo}/${skan.nazwa}`).toString('base64url'), { odcisk: odcisk(skan.stat), stan: 'gotowe', ponowPo: 0 });
+  return wynik;
+}
+
+export async function rozpoznajSkan(id: string, uzytkownikId: number, uruchom = true) {
+  const skan = await odczytaj(id);
+  const wynik = await wynikOcr(skan, uruchom);
+  if (!wynik) return null;
   const propozycje = dopasujSprawy(wynik.tekst, await sprawyUzytkownika(uzytkownikId));
   return { ...wynik, sha256: skan.sha256, propozycje, propozycjeTerminow: odczytajTerminyOdpowiedzi(wynik.tekst),
     proponowanaSprawaId: propozycje.length === 1 && propozycje[0]!.pewnosc === 'wysoka' ? propozycje[0]!.sprawaId : null };
+}
+
+/** Jeden przebieg kolejki. Bez tworzenia spraw, dat, terminów i przypisań. */
+export async function przetworzKolejkeSkanow(czyZatrzymano = () => false) {
+  const skany = await listaSkanow();
+  const ids = new Set(skany.map(s => s.id));
+  for (const id of statusy.keys()) if (!ids.has(id)) statusy.delete(id);
+  for (const wpis of skany.reverse()) {
+    if (czyZatrzymano()) break;
+    if (!wpis.gotowy || wpis.zaDuzy || aktywneImporty.has(wpis.id)) continue;
+    const stat = await lstat(czesci(wpis.id).sciezka).catch(() => null);
+    if (!stat) continue;
+    const poprzedni = statusy.get(wpis.id);
+    if (poprzedni?.odcisk === odcisk(stat) && (poprzedni.stan === 'gotowe' || poprzedni.ponowPo > Date.now())) continue;
+    let skan;
+    try { skan = await odczytaj(wpis.id); } catch { continue; }
+    statusy.set(wpis.id, { odcisk: odcisk(skan.stat), stan: 'przetwarzanie', ponowPo: 0 });
+    try { await wynikOcr(skan, true); }
+    catch (blad) {
+      statusy.set(wpis.id, { odcisk: odcisk(skan.stat), stan: 'blad', ponowPo: Date.now() + 300_000 });
+      // Bez nazw plików i treści dokumentów w dzienniku usługi.
+      console.warn('[skany] OCR nie powiódł się; ponowienie za 5 minut.', blad instanceof BladZadania ? blad.kod : 'blad');
+    }
+  }
 }
 
 /** Usunięcie z poczekalni zachowuje plik i metrykę w koszu poza udziałem SMB. */
@@ -213,7 +274,7 @@ export async function importujSkan(id: string, uzytkownikId: number, pismoId: nu
       dokument = await dokumentyDb.znajdzDlaUzytkownika(nowy.id, uzytkownikId);
     }
     if (!dokument) throw new BladZadania(500, 'Nie udało się potwierdzić zapisu dokumentu');
-    const ocr = cache.get(skan.sha256);
+    const ocr = await wynikOcr(skan, false);
     if (ocr) await dokumentyDb.zapiszOcr(dokument.id, ocr.tekst, ocr.liczbaStron);
     const terminId = terminZeSkanu ? await przeniesTerminDoSprawy(pismoId, terminZeSkanu) : null;
     let archiwizowano = false;

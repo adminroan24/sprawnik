@@ -2,6 +2,7 @@ services:
   db:
     image: postgres:17-alpine
     container_name: sprawnik-db
+    restart: unless-stopped
     environment:
       POSTGRES_DB: sprawnik
       POSTGRES_USER: sprawnik

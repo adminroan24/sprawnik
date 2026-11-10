@@ -6,11 +6,12 @@ import { FormularzPisma } from './FormularzPisma';
 import { Komunikat, Pole } from './wspolne';
 import { nazwyRolDokumentow, type Regula, type RolaDokumentu, type SprawaNaLiscie, type WynikRejestracjiPisma, type SzczegolySprawy } from '../typy';
 
-type Skan = { id: string; nazwa: string; zrodlo: string; rozmiarBajtow: number; gotowy: boolean; zaDuzy: boolean; dataWplywu: string | null; terminOdpowiedzi: TerminSkanu | null };
+type Skan = { stanOcr: 'oczekuje' | 'przetwarzanie' | 'gotowe' | 'blad'; id: string; nazwa: string; zrodlo: string; rozmiarBajtow: number; gotowy: boolean; zaDuzy: boolean; dataWplywu: string | null; terminOdpowiedzi: TerminSkanu | null };
 type Rozpoznanie = { propozycjeTerminow: PropozycjaTerminuSkanu[]; tekst: string; sha256: string; proponowanaSprawaId: number | null;
   propozycje: { sprawaId: number; tytul: string; pewnosc: 'wysoka' | 'niska'; powody: string[] }[] };
 
 export function Skany({ otworzSprawe }: { otworzSprawe: (id: number) => void }) {
+  const [automatycznaObsluga, setAutomatycznaObsluga] = useState(false);
   const [skany, setSkany] = useState<Skan[]>([]);
   const [sprawy, setSprawy] = useState<SprawaNaLiscie[]>([]);
   const [reguly, setReguly] = useState<Regula[]>([]);
@@ -36,11 +37,39 @@ export function Skany({ otworzSprawe }: { otworzSprawe: (id: number) => void }) 
   const wymaganaData = pismo?.kierunek === 'przychodzace' && rola === 'tresc';
   const dzisiaj = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 
-  async function odswiez() { setSkany((await api.pobierz<{ skany: Skan[] }>('/skany')).skany); }
+  async function odswiez() {
+    const wynik = await api.pobierz<{ skany: Skan[]; obslugaAutomatyczna: boolean }>('/skany');
+    setSkany(wynik.skany); setAutomatycznaObsluga(wynik.obslugaAutomatyczna);
+  }
   useEffect(() => {
     Promise.all([odswiez(), api.pobierz<{ sprawy: SprawaNaLiscie[] }>('/sprawy').then(w => setSprawy(w.sprawy)),
       api.pobierz<{ reguly: Regula[] }>('/reguly').then(w => setReguly(w.reguly))]).catch(setBlad);
   }, []);
+  useEffect(() => {
+    let aktualne = true;
+    let trwa = false;
+    const timer = setInterval(async () => {
+      if (trwa) return;
+      trwa = true;
+      try {
+        const wynik = await api.pobierz<{ skany: Skan[]; obslugaAutomatyczna: boolean }>('/skany');
+        if (aktualne) { setSkany(wynik.skany); setAutomatycznaObsluga(wynik.obslugaAutomatyczna); }
+      } catch (e) { if (aktualne) setBlad(e); }
+      finally { trwa = false; }
+    }, 5000);
+    return () => { aktualne = false; clearInterval(timer); };
+  }, []);
+  const stanWybranego = skany.find(s => s.id === wybrany?.id)?.stanOcr;
+  useEffect(() => {
+    if (!wybrany || rozpoznanie) return;
+    let aktualne = true;
+    api.pobierz<{ rozpoznanie: Rozpoznanie | null }>(`/skany/${wybrany.id}/rozpoznanie`).then(w => {
+      if (!aktualne || !w.rozpoznanie) return;
+      setRozpoznanie(w.rozpoznanie);
+      if (w.rozpoznanie.proponowanaSprawaId) setSprawaId(poprzednia => poprzednia || String(w.rozpoznanie!.proponowanaSprawaId));
+    }).catch(e => { if (aktualne) setBlad(e); });
+    return () => { aktualne = false; };
+  }, [wybrany?.id, stanWybranego, rozpoznanie]);
   useEffect(() => {
     let aktualne = true;
     setSzczegoly(null); setPismoId(''); setNowePismo(false); setRegulaDoreczenia('');
@@ -110,6 +139,7 @@ export function Skany({ otworzSprawe }: { otworzSprawe: (id: number) => void }) 
   return <section>
     <div className="naglowek-sekcji"><h1>Skany ze skanerów</h1>
       <button disabled={zajety} onClick={() => odswiez().catch(setBlad)}>Odśwież listę</button></div>
+    <p role="status">{automatycznaObsluga ? 'Stały odbiór i odczyt skanów są włączone. Nowe pliki pojawiają się automatycznie.' : 'Lista odświeża się automatycznie. Odczyt tekstu uruchom przyciskiem.'}</p>
     <p>Wybierz odebrany skan. Odczyt tekstu zaproponuje sprawę na podstawie jej znaku lub znaku wcześniejszego pisma.</p>
     <Komunikat blad={blad} />
     {komunikat && <p role="status">{komunikat} {sprawaId && <button onClick={() => otworzSprawe(Number(sprawaId))}>Otwórz sprawę</button>}</p>}
@@ -121,8 +151,8 @@ export function Skany({ otworzSprawe }: { otworzSprawe: (id: number) => void }) 
       <button disabled={zajety} onClick={() => setUsuniecie(null)}>Anuluj usunięcie</button>
     </div>}
     {skany.length === 0 && <p>Brak skanów oczekujących na przypisanie.</p>}
-    {skany.length > 0 && <div className="karta"><table><thead><tr><th>Plik</th><th>Skaner</th><th>Data wpływu</th><th>Termin odpowiedzi / wykonania</th><th>Rozmiar</th><th>Wybór</th></tr></thead>
-      <tbody>{skany.map(s => <tr key={s.id}><td>{s.nazwa}</td><td>{s.zrodlo}</td><td>{s.dataWplywu ? s.dataWplywu.split('-').reverse().join('.') : 'Nie zapisano'}</td><td>{s.terminOdpowiedzi ? s.terminOdpowiedzi.dataUplywu.split('-').reverse().join('.') : 'Nie ustawiono'}</td><td>{Math.ceil(s.rozmiarBajtow / 1024)} KB</td>
+    {skany.length > 0 && <div className="karta"><table><thead><tr><th>Plik</th><th>Skaner</th><th>Odczyt tekstu</th><th>Data wpływu</th><th>Termin odpowiedzi / wykonania</th><th>Rozmiar</th><th>Wybór</th></tr></thead>
+      <tbody>{skany.map(s => <tr key={s.id}><td>{s.nazwa}</td><td>{s.zrodlo}</td><td>{{ oczekuje: 'Oczekuje', przetwarzanie: 'Odczytywanie…', gotowe: 'Gotowy', blad: 'Nie udało się odczytać — można ponowić' }[s.stanOcr]}</td><td>{s.dataWplywu ? s.dataWplywu.split('-').reverse().join('.') : 'Nie zapisano'}</td><td>{s.terminOdpowiedzi ? s.terminOdpowiedzi.dataUplywu.split('-').reverse().join('.') : 'Nie ustawiono'}</td><td>{Math.ceil(s.rozmiarBajtow / 1024)} KB</td>
         <td><button disabled={zajety || !s.gotowy || s.zaDuzy} onClick={() => wybierz(s)}>
           {s.zaDuzy ? 'Przekracza 10 MiB' : !s.gotowy ? 'Trwa odbiór…' : wybrany?.id === s.id ? 'Wybrany' : 'Wybierz'}</button> <button disabled={zajety || !s.gotowy} onClick={() => { setUsuniecie(s); setPowodUsuniecia(''); setBlad(null); }}>Usuń skan</button></td></tr>)}</tbody></table></div>}
     {wybrany && <div className="karta formularz"><h2>{wybrany.nazwa}</h2>

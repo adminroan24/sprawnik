@@ -11,7 +11,7 @@ export const skanyRouter = Router();
 skanyRouter.use(wymagaZalogowania, wymagaAdministratora);
 const idSkanu = z.string().min(1).max(2048);
 
-skanyRouter.get('/', async (_req, res) => { res.json({ skany: await listaSkanow() }); });
+skanyRouter.get('/', async (_req, res) => { res.json({ skany: await listaSkanow(), obslugaAutomatyczna: process.env.SCAN_WATCH_ENABLED === 'true' }); });
 
 skanyRouter.patch('/:id/wplyw', async (req, res) => {
   const dane = z.object({
@@ -22,6 +22,10 @@ skanyRouter.patch('/:id/wplyw', async (req, res) => {
     sha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   }).parse(req.body);
   res.json(await zapiszDateWplywu(idSkanu.parse(req.params.id), dane.dataWplywu, zalogowany(req).id, dane.sha256));
+});
+
+skanyRouter.get('/:id/rozpoznanie', async (req, res) => {
+  res.json({ rozpoznanie: await rozpoznajSkan(idSkanu.parse(req.params.id), zalogowany(req).id, false) });
 });
 
 skanyRouter.post('/:id/rozpoznaj', async (req, res) => {

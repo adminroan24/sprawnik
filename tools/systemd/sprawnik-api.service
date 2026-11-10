@@ -1,0 +1,17 @@
+[Unit]
+Description=Sprawnik — API i stały odbiór skanów
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+WorkingDirectory=%h/projekty/sprawnik/backend
+EnvironmentFile=%h/.config/sprawnik/uslugi.env
+ExecStartPre=/usr/bin/docker start sprawnik-db
+ExecStart=/usr/local/bin/node --import %h/projekty/sprawnik/backend/node_modules/tsx/dist/loader.mjs %h/projekty/sprawnik/backend/src/index.ts
+Restart=always
+RestartSec=5
+TimeoutStopSec=120
+UMask=0077
+
+[Install]
+WantedBy=default.target
