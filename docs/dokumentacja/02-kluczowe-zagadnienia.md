@@ -105,10 +105,11 @@ jego prezentacji użytkownikowi (UC8).
 
 ## 2.2. Model danych
 
-Model obejmuje osiem tabel. Cztery odwzorowują przedmiot pracy (sprawa, pismo,
+Model obejmuje jedenaście tabel. Cztery odwzorowują przedmiot pracy (sprawa, pismo,
 dokument, termin), jedna użytkowników, a dwie stanowią konfigurację mechanizmu
 wyznaczania terminów (reguła terminu, kalendarz dni wolnych). Ósma przechowuje
-wynik rozpoznawania tekstu dokumentu.
+wynik rozpoznawania tekstu dokumentu. Rozszerzenia obejmują profil organizacji,
+grupy spraw oraz książkę adresową.
 
 | Tabela | Rola w systemie |
 |--------|-----------------|
@@ -120,6 +121,9 @@ wynik rozpoznawania tekstu dokumentu.
 | `regula_terminu` | Konfiguracja sposobu wyznaczania terminu. Dane, nie kod. |
 | `termin` | Wyznaczony termin wraz ze śladem pochodzenia. |
 | `dzien_wolny` | Kalendarz dni ustawowo wolnych, wykorzystywany przy liczeniu dni roboczych. |
+| `profil_firmy` | Profil jednej organizacji w instalacji. |
+| `grupa_spraw` | Edytowalne drzewo klasyfikacji spraw. |
+| `kontakt` | Wspólna książka adresowa osób, firm i instytucji. |
 
 ![](../diagramy/model-danych.png)
 
@@ -392,3 +396,13 @@ w jedną stronę. Trasa nie zawiera zapytań SQL, a moduł dziedzinowy nie zna
 obiektu żądania. Uwierzytelnianie działa jako ogniwo uruchamiane przed obsługą
 żądania, więc trasa chroniona nie może pominąć sprawdzenia tożsamości przez
 przeoczenie.
+
+### Książka adresowa — rozszerzenie z 10.11.2026
+
+Tabela `kontakt` przechowuje dane adresowe i kanały kontaktu. Zalogowani użytkownicy
+mogą przeglądać książkę i wybierać nadawcę lub adresata; administrator edytuje wpisy.
+Przy rejestracji pisma z kontaktem system w tej samej transakcji zapisuje jego nazwę,
+powiązanie `kontakt_id` i kopię danych `dane_korespondenta`. Edycja książki nie zmienia
+wcześniejszych pism. Kontakt użyty w korespondencji można wyłączyć, ale jego usunięcie
+jest blokowane. Ręczne wpisanie korespondenta nadal działa. Książka nie zmienia
+własności spraw i nie importuje danych z prywatnych spraw innych użytkowników.

@@ -5,7 +5,7 @@ export const planPrzypisania = z.object({
   sprawaId: z.number().int().positive().optional(),
   nowaSprawa: z.object({ tytul: z.string().trim().min(1), grupaId: z.number().int().positive().nullable().default(null) }).optional(),
   pismoId: z.number().int().positive().optional(),
-  nowePismo: z.object({ rodzaj: z.string().trim().min(1), korespondent: z.string().trim().min(1),
+  nowePismo: z.object({ kontaktId: z.number().int().positive().nullable().optional(), rodzaj: z.string().trim().min(1), korespondent: z.string().trim().min(1),
     znakPisma: z.string().nullable().default(null), opis: z.string().nullable().default(null) }).optional(),
   rola: z.enum(['tresc','zalacznik','dowod_nadania','potwierdzenie_odbioru']).default('tresc'),
 }).refine(p => Boolean(p.sprawaId) !== Boolean(p.nowaSprawa), 'Wskaż istniejącą albo nową sprawę')

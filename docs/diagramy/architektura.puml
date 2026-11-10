@@ -26,14 +26,14 @@ actor "Użytkownik" as U
 
 node "Przeglądarka" {
   component "Warstwa frontendowa\n(React, TypeScript)" as FE {
-    component "Widoki:\nsprawy, pisma, terminy,\ndokumenty, skany, profil firmy, drzewo" as WIDOKI
+    component "Widoki:\nsprawy, pisma, terminy,\ndokumenty, skany, profil firmy, drzewo,\nksiążka adresowa" as WIDOKI
     component "Klient REST" as KLIENT
   }
 }
 
 node "Serwer aplikacji (Node.js)" {
   component "Warstwa API (Express)" as API {
-    component "Trasy REST\n/api/sprawy, /api/pisma,\n/api/terminy, /api/dokumenty,\n/api/firma, /api/grupy" as TRASY
+    component "Trasy REST\n/api/sprawy, /api/pisma,\n/api/terminy, /api/dokumenty,\n/api/firma, /api/grupy, /api/kontakty" as TRASY
     component "Uwierzytelnianie\n(JWT, hasła bcrypt)\nbez stanu sesji w bazie" as AUTH
     component "Obsługa błędów" as BLEDY
   }
@@ -41,7 +41,7 @@ node "Serwer aplikacji (Node.js)" {
   component "Warstwa dziedzinowa" as DZIEDZINA {
     component "Silnik terminów\n(reguła + data zdarzenia)" as SILNIK
     component "Obsługa dokumentów\n(zapis, metadane, pobieranie)" as DOKUMENTY
-    component "Rejestr spraw i pism\noraz grup spraw" as REJESTR
+    component "Rejestr spraw i pism\noraz grup spraw i kontaktów" as REJESTR
     component "OCR dokumentów" as OCR
     component "Skanowanie sprzętowe" as SKANOWANIE
   }
@@ -50,7 +50,7 @@ node "Serwer aplikacji (Node.js)" {
 }
 
 database "PostgreSQL 17" as DB {
-  component "Dane spraw, pism, terminów,\nprofil firmy i grupy" as TABELE
+  component "Dane spraw, pism, terminów,\nprofil firmy, grupy i kontakty" as TABELE
   component "Reguły terminów,\nkalendarz dni wolnych" as KONFIG
 }
 

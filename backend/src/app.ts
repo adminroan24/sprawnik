@@ -1,3 +1,4 @@
+import { kontaktyRouter } from './routes/kontakty.js';
 import express from 'express';
 import { z } from 'zod';
 import { pl } from 'zod/locales';
@@ -30,6 +31,7 @@ export function createApp() {
   app.use('/api', skaneryRouter);
   app.use('/api/skany', skanyRouter);
   app.use('/api', organizacjaRouter);
+  app.use('/api/kontakty', kontaktyRouter);
   app.use('/api/sprawy', sprawyRouter);
   app.use('/api/pisma', pismaRouter);
   app.use('/api/terminy', terminyRouter);

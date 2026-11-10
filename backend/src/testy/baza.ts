@@ -39,7 +39,7 @@ export async function odtworzBaze(): Promise<void> {
 
 /** Usuwa dane dziedzinowe, zostawiając konfigurację wczytaną migracją. */
 export async function wyczyscDane(): Promise<void> {
-  await pool.query('TRUNCATE termin, dokument, pismo, sprawa, uzytkownik, grupa_spraw RESTART IDENTITY CASCADE');
+  await pool.query('TRUNCATE termin, dokument, pismo, sprawa, uzytkownik, grupa_spraw, kontakt RESTART IDENTITY CASCADE');
 }
 
 export type Serwer = {

@@ -1,3 +1,4 @@
+import type { DaneKontaktu } from './kontakty.js';
 import { pool, type Wykonawca } from './pool.js';
 
 export type KierunekPisma = 'przychodzace' | 'wychodzace';
@@ -9,6 +10,8 @@ export type Pismo = {
   kierunek: KierunekPisma;
   rodzaj: string;
   korespondent: string;
+  kontaktId: number | null;
+  daneKorespondenta: DaneKontaktu | null;
   znakPisma: string | null;
   dataNadania: string | null;
   dataDoreczenia: string | null;
@@ -25,6 +28,8 @@ const kolumny = (prefiks = '') => `
   ${prefiks}kierunek,
   ${prefiks}rodzaj,
   ${prefiks}korespondent,
+  ${prefiks}kontakt_id AS "kontaktId",
+  ${prefiks}dane_korespondenta AS "daneKorespondenta",
   ${prefiks}znak_pisma      AS "znakPisma",
   ${prefiks}data_nadania    AS "dataNadania",
   ${prefiks}data_doreczenia AS "dataDoreczenia",
@@ -56,6 +61,8 @@ export async function dodaj(dane: {
   kierunek: KierunekPisma;
   rodzaj: string;
   korespondent: string;
+  kontaktId?: number | null;
+  daneKorespondenta?: DaneKontaktu | null;
   znakPisma: string | null;
   dataNadania: string | null;
   dataDoreczenia: string | null;
@@ -67,8 +74,8 @@ export async function dodaj(dane: {
   const { rows } = await wykonawca.query<Pismo>(
     `INSERT INTO pismo
        (sprawa_id, kierunek, rodzaj, korespondent, znak_pisma, data_nadania, data_doreczenia, opis,
-        kanal, numer_nadania, odpowiedz_na_pismo_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        kanal, numer_nadania, odpowiedz_na_pismo_id, kontakt_id, dane_korespondenta)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
      RETURNING ${kolumny()}`,
     [
       dane.sprawaId,
@@ -79,7 +86,7 @@ export async function dodaj(dane: {
       dane.dataNadania,
       dane.dataDoreczenia,
       dane.opis,
-      dane.kanal ?? null, dane.numerNadania ?? null, dane.odpowiedzNaPismoId ?? null,
+      dane.kanal ?? null, dane.numerNadania ?? null, dane.odpowiedzNaPismoId ?? null, dane.kontaktId ?? null, dane.daneKorespondenta ? JSON.stringify(dane.daneKorespondenta) : null,
     ],
   );
   return rows[0]!;

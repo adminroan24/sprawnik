@@ -1,5 +1,7 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { api } from '../api/client';
+import { DaneKontaktowe } from './KsiazkaAdresowa';
+import type { Kontakt } from '../typy';
 import { Komunikat, Pole } from './wspolne';
 import { nazwyKanalow, type KanalPisma, type Pismo, type KierunekPisma, type Regula, type WynikRejestracjiPisma } from '../typy';
 
@@ -27,6 +29,10 @@ export function FormularzPisma({
   const [kierunek, setKierunek] = useState<KierunekPisma>(odpowiedzNa ?
     (odpowiedzNa.kierunek === 'przychodzace' ? 'wychodzace' : 'przychodzace') : 'przychodzace');
   const [rodzaj, setRodzaj] = useState(odpowiedzNa ? 'Odpowiedź' : '');
+  const [kontakty, setKontakty] = useState<Kontakt[]>([]);
+  const [kontaktId, setKontaktId] = useState('');
+  const [szukajKontaktu, setSzukajKontaktu] = useState('');
+  const [bladKontaktow, setBladKontaktow] = useState<unknown>(null);
   const [korespondent, setKorespondent] = useState(odpowiedzNa?.korespondent ?? '');
   const [znakPisma, setZnakPisma] = useState('');
   const [dataNadania, setDataNadania] = useState('');
@@ -39,6 +45,21 @@ export function FormularzPisma({
   const [numerNadania, setNumerNadania] = useState('');
   const [poprzednieId, setPoprzednieId] = useState(odpowiedzNa ? String(odpowiedzNa.id) : '');
 
+  async function wczytajKontakty(pierwszy = false) {
+    try {
+      const w = await api.pobierz<{ kontakty: Kontakt[] }>('/kontakty');
+      setKontakty(w.kontakty); setBladKontaktow(null);
+      if (!pierwszy && kontaktId && !w.kontakty.some(k => String(k.id) === kontaktId)) setKontaktId('');
+      if (pierwszy && odpowiedzNa?.kontaktId) {
+        const k = w.kontakty.find(k => k.id === odpowiedzNa.kontaktId);
+        if (k) { setKontaktId(String(k.id)); setKorespondent(k.nazwa); }
+      }
+    } catch (e) { setBladKontaktow(e); }
+  }
+  useEffect(() => { void wczytajKontakty(true); }, []);
+  const wybranyKontakt = kontakty.find(k => String(k.id) === kontaktId);
+  const pasujaceKontakty = kontakty.filter(k => k.id === wybranyKontakt?.id ||
+    [k.nazwa,k.nip,k.email,k.adres,k.telefon].join(' ').toLocaleLowerCase('pl').includes(szukajKontaktu.toLocaleLowerCase('pl')));
   const wybranaRegula = reguly.find((regula) => String(regula.id) === regulaId) ?? null;
 
   async function wyslij(zdarzenie: FormEvent) {
@@ -52,6 +73,7 @@ export function FormularzPisma({
         kierunek,
         rodzaj,
         korespondent,
+        kontaktId: kontaktId ? Number(kontaktId) : null,
         znakPisma,
         dataNadania: dataNadania || null,
         dataDoreczenia: dataDoreczenia || null,
@@ -70,6 +92,21 @@ export function FormularzPisma({
       <h3>Rejestracja pisma</h3>
       <Komunikat blad={blad} />
 
+      <div className="karta">
+        <h4>Nadawca / adresat z książki adresowej</h4>
+        <Komunikat blad={bladKontaktow} />
+        <div className="siatka">
+          <Pole etykieta="Szukaj w książce adresowej"><input value={szukajKontaktu} onChange={e => setSzukajKontaktu(e.target.value)} placeholder="Nazwa, NIP, e-mail lub adres" /></Pole>
+          <Pole etykieta="Kontakt z książki adresowej"><select value={kontaktId} onChange={e => {
+            setKontaktId(e.target.value);
+            const k = kontakty.find(k => String(k.id) === e.target.value);
+            if (k) setKorespondent(k.nazwa);
+          }}><option value="">Wpisz nadawcę / adresata ręcznie</option>{pasujaceKontakty.map(k => <option key={k.id} value={k.id}>{k.nazwa}{k.adres ? ` — ${k.adres.replace(/\n/g, ', ')}` : ''}</option>)}</select></Pole>
+        </div>
+        <button type="button" className="drugorzedny" onClick={() => wczytajKontakty()}>Odśwież książkę adresową</button>
+        {wybranyKontakt && <><DaneKontaktowe dane={wybranyKontakt} /><p>Dane tego kontaktu zostaną zachowane przy piśmie.</p></>}
+        {kontakty.length === 0 && <p>Kontakty dodasz w zakładce Książka adresowa. Możesz też wpisać nadawcę lub adresata ręcznie.</p>}
+      </div>
       <div className="siatka">
         <Pole etykieta="Kierunek">
           <select value={kierunek} onChange={(e) => setKierunek(e.target.value as KierunekPisma)}>
@@ -86,7 +123,7 @@ export function FormularzPisma({
           />
         </Pole>
         <Pole etykieta={kierunek === 'przychodzace' ? 'Nadawca' : 'Adresat'}>
-          <input value={korespondent} onChange={(e) => setKorespondent(e.target.value)} required />
+          <input value={korespondent} onChange={(e) => { setKontaktId(''); setKorespondent(e.target.value); }} required />
         </Pole>
         <Pole etykieta="Znak pisma">
           <input value={znakPisma} onChange={(e) => setZnakPisma(e.target.value)} />

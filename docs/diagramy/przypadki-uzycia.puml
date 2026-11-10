@@ -39,10 +39,13 @@ rectangle "Sprawnik" {
   usecase "UC14\nEdycja profilu firmy\n(rozszerzenie)" as UC14
   usecase "UC15\nEdycja drzewa grup\n(rozszerzenie)" as UC15
   usecase "UC16\nPrzypisanie własnej sprawy do grupy\n(rozszerzenie)" as UC16
+  usecase "UC17\nPrzegląd i wybór kontaktu\n(rozszerzenie)" as UC17
+  usecase "UC18\nEdycja książki adresowej\n(rozszerzenie)" as UC18
   usecase "UC13\nZarządzanie\nużytkownikami" as UC13
 }
 
 U --> UC1
+U --> UC17
 U --> UC16
 U --> UC2
 U --> UC3
@@ -53,6 +56,7 @@ U --> UC11
 U --> UC12
 
 A --> UC6
+A --> UC18
 A --> UC14
 A --> UC15
 A --> UC13

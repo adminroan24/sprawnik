@@ -911,3 +911,70 @@ describe('profil firmy i drzewo spraw', () => {
     assert.equal((await a.pobierz('/api/grupy')).tresc.grupy.length, 11);
   });
 });
+
+
+describe('książka adresowa', () => {
+  const kontakt = { typ: 'instytucja', nazwa: 'Urząd Testowy', email: 'kancelaria@example.com',
+    adres: 'ul. Przykładowa 1\n00-001 Miasto', telefon: '123456789', nip: 'TEST-123',
+    adresEdoreczen: 'AE:TEST', skrzynkaEpuap: '/test/skrytka', osobaKontaktowa: 'Osoba Testowa', notatka: 'Uwagi wewnętrzne' };
+  it('pozwala odczytać i wyszukać wspólną książkę, a zmiany udostępnia tylko administratorowi', async () => {
+    const admin = await zaloguj('kontakty-admin@example.com', 'administrator');
+    const user = await zaloguj('kontakty-user@example.com');
+    assert.equal((await klient(serwer.adres).pobierz('/api/kontakty')).kod, 401);
+    assert.equal((await user.wyslij('/api/kontakty', kontakt)).kod, 403);
+    const nowy = await admin.wyslij('/api/kontakty', kontakt); assert.equal(nowy.kod, 201);
+    const id = nowy.tresc.kontakt.id;
+    assert.equal((await user.pobierz(`/api/kontakty/${id}`)).tresc.kontakt.adres, kontakt.adres);
+    assert.equal((await user.pobierz('/api/kontakty?szukaj=kancelaria')).tresc.kontakty.length, 1);
+    assert.equal((await user.pobierz('/api/kontakty?szukaj=TEST-123')).tresc.kontakty.length, 1);
+    assert.equal((await user.pobierz('/api/kontakty?szukaj=nieistniejacy')).tresc.kontakty.length, 0);
+    assert.equal((await user.zmien(`/api/kontakty/${id}`, kontakt)).kod, 403);
+    assert.equal((await user.usun(`/api/kontakty/${id}`)).kod, 403);
+    assert.equal((await admin.zmien(`/api/kontakty/${id}`, { ...kontakt, nazwa: 'Urząd po edycji' })).tresc.kontakt.nazwa, 'Urząd po edycji');
+  });
+  it('waliduje dane i pozwala usunąć wyłącznie niepowiązany kontakt', async () => {
+    const admin = await zaloguj('kontakty-walidacja@example.com', 'administrator');
+    for (const bledny of [{...kontakt,nazwa:' '},{...kontakt,email:'zly-adres'},{...kontakt,typ:'nieznany'},{...kontakt,adres:'x'.repeat(1001)}]) {
+      assert.equal((await admin.wyslij('/api/kontakty', bledny)).kod, 400);
+    }
+    const nowy = await admin.wyslij('/api/kontakty', kontakt); const id = nowy.tresc.kontakt.id;
+    assert.equal((await admin.usun(`/api/kontakty/${id}`)).kod, 200);
+    assert.equal((await admin.pobierz(`/api/kontakty/${id}`)).kod, 404);
+    assert.equal((await admin.zmien(`/api/kontakty/${id}`, kontakt)).kod, 404);
+  });
+  it('zapisuje dane wybranego kontaktu przy piśmie i zachowuje historię po edycji lub wyłączeniu', async () => {
+    const admin = await zaloguj('kontakty-historia@example.com', 'administrator');
+    const user = await zaloguj('kontakty-pismo@example.com');
+    const id = (await admin.wyslij('/api/kontakty', kontakt)).tresc.kontakt.id;
+    const sprawaId = (await user.wyslij('/api/sprawy', { tytul: 'Sprawa z kontaktem' })).tresc.sprawa.id;
+    const p = { kierunek: 'wychodzace', rodzaj: 'Odpowiedź', korespondent: 'Podstawiona nazwa', kontaktId: id,
+      daneKorespondenta: { adres: 'Podstawiony adres' } };
+    const pierwsze = await user.wyslij(`/api/sprawy/${sprawaId}/pisma`, p);
+    assert.equal(pierwsze.kod, 201); assert.equal(pierwsze.tresc.pismo.korespondent, kontakt.nazwa);
+    assert.equal(pierwsze.tresc.pismo.kontaktId, id);
+    assert.equal(pierwsze.tresc.pismo.daneKorespondenta.adres, kontakt.adres);
+    assert.equal(pierwsze.tresc.pismo.daneKorespondenta.notatka, undefined);
+    await admin.zmien(`/api/kontakty/${id}`, { ...kontakt, nazwa: 'Nowa nazwa', adres: 'Nowy adres' });
+    const drugie = await user.wyslij(`/api/sprawy/${sprawaId}/pisma`, { ...p, kierunek: 'przychodzace' });
+    assert.equal(drugie.tresc.pismo.daneKorespondenta.adres, 'Nowy adres');
+    const stare = (await user.pobierz(`/api/sprawy/${sprawaId}`)).tresc.pisma.find((p: any) => p.id === pierwsze.tresc.pismo.id);
+    assert.equal(stare.korespondent, kontakt.nazwa); assert.equal(stare.daneKorespondenta.adres, kontakt.adres);
+    assert.equal((await admin.usun(`/api/kontakty/${id}`)).kod, 409);
+    await admin.zmien(`/api/kontakty/${id}`, { ...kontakt, aktywny: false });
+    assert.equal((await user.pobierz('/api/kontakty')).tresc.kontakty.length, 0);
+    assert.equal((await user.pobierz('/api/kontakty?archiwalne=true')).tresc.kontakty.length, 1);
+    assert.equal((await user.wyslij(`/api/sprawy/${sprawaId}/pisma`, p)).kod, 400);
+    assert.equal((await admin.pobierz(`/api/sprawy/${sprawaId}`)).kod, 404);
+    assert.equal((await user.pobierz(`/api/sprawy/${sprawaId}`)).tresc.pisma.length, 2);
+  });
+  it('zachowuje ręcznego korespondenta i odrzuca brakujący kontakt bez częściowego zapisu', async () => {
+    const user = await zaloguj('kontakty-reczne@example.com');
+    const sprawaId = (await user.wyslij('/api/sprawy', { tytul: 'Sprawa bez kontaktu' })).tresc.sprawa.id;
+    const p = { kierunek: 'przychodzace', rodzaj: 'Pismo', korespondent: 'Wpisany ręcznie' };
+    const stare = await user.wyslij(`/api/sprawy/${sprawaId}/pisma`, p);
+    assert.equal(stare.tresc.pismo.korespondent, p.korespondent);
+    assert.equal(stare.tresc.pismo.kontaktId, null); assert.equal(stare.tresc.pismo.daneKorespondenta, null);
+    assert.equal((await user.wyslij(`/api/sprawy/${sprawaId}/pisma`, { ...p, kontaktId: 99999 })).kod, 404);
+    assert.equal((await user.pobierz(`/api/sprawy/${sprawaId}`)).tresc.pisma.length, 1);
+  });
+});

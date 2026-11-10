@@ -5,6 +5,7 @@
  * trasy przekazują mu gotowe wartości i otrzymują wynik operacji.
  */
 
+import * as kontaktyDb from '../db/kontakty.js';
 import { wTransakcji } from '../db/pool.js';
 import * as pismaDb from '../db/pisma.js';
 import * as terminyDb from '../db/terminy.js';
@@ -19,6 +20,7 @@ export type DanePisma = {
   kierunek: pismaDb.KierunekPisma;
   rodzaj: string;
   korespondent: string;
+  kontaktId?: number | null;
   znakPisma: string | null;
   dataNadania: string | null;
   dataDoreczenia: string | null;
@@ -63,7 +65,13 @@ export async function zarejestrujPismo(
   }
 
   return wTransakcji(async (wykonawca) => {
-    const pismo = await pismaDb.dodaj({ sprawaId, ...dane }, wykonawca);
+    const kontakt = dane.kontaktId ? await kontaktyDb.znajdz(dane.kontaktId, wykonawca, true) : null;
+    if (dane.kontaktId && !kontakt) throw bladBrakZasobu('Kontakt nie istnieje');
+    if (kontakt && !kontakt.aktywny) throw bladWalidacji('Kontakt jest wyłączony. Wybierz aktywny kontakt.');
+    const pismo = await pismaDb.dodaj({ sprawaId, ...dane,
+      korespondent: kontakt?.nazwa ?? dane.korespondent,
+      daneKorespondenta: kontakt ? kontaktyDb.kopia(kontakt) : null,
+    }, wykonawca);
 
     if (!regula) {
       return { pismo, termin: null, powodBrakuTerminu: 'Nie wskazano reguły terminu' };

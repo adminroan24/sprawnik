@@ -35,6 +35,7 @@ const nowePismo = z.object({
   kierunek: z.enum(['przychodzace', 'wychodzace']),
   rodzaj: z.string().trim().min(1, 'Rodzaj pisma jest wymagany'),
   korespondent: z.string().trim().min(1, 'Nadawca lub adresat jest wymagany'),
+  kontaktId: identyfikator.nullable().default(null),
   znakPisma: tekstOpcjonalny,
   dataNadania: dataIso.nullable().default(null),
   dataDoreczenia: dataIso.nullable().default(null),

@@ -236,3 +236,7 @@ Polecenie `npm run przypisz-skan` w katalogu `backend/` obsługuje istniejącą 
 ### Stały odbiór skanów i autostart
 
 Opcja `SCAN_WATCH_ENABLED=true` uruchamia kolejkę lokalnego OCR. Nowe skany pojawiają się automatycznie, a wynik odczytu zostaje na dysku po restarcie. Przypisanie do sprawy, data wpływu i termin wymagają sprawdzenia przez użytkownika. [Działanie kolejki i usługi systemd](docs/11-stala-obsluga-skanow.md).
+
+### Książka adresowa
+
+Kontakty osób, firm i instytucji z adresami pocztowymi, e-mail, telefonem, e-Doręczeniami i ePUAP. Administrator edytuje książkę, użytkownicy wybierają nadawcę lub adresata pisma. Kopia danych przy piśmie zachowuje historię adresową. [Instrukcja i migracja 005](docs/12-ksiazka-adresowa.md).

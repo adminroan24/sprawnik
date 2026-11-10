@@ -3,6 +3,7 @@ import { api } from '../api/client';
 import { FormularzPisma } from './FormularzPisma';
 import { sciezkaGrupy } from './grupy';
 import type { GrupaSpraw } from '../typy';
+import { DaneKontaktowe } from './KsiazkaAdresowa';
 import { Dokumenty } from './Dokumenty';
 import {
   Data,
@@ -209,7 +210,7 @@ export function WidokSprawy({ id, wroc, administrator = false }: { id: number; w
                 <td>{pismo.rodzaj}
                   {pismo.odpowiedzNaPismoId && <div className="drobne">Odpowiedź na #{pismo.odpowiedzNaPismoId}: {pisma.find((p) => p.id === pismo.odpowiedzNaPismoId)?.rodzaj}</div>}
                 </td>
-                <td>{pismo.korespondent}</td>
+                <td>{pismo.korespondent}{pismo.daneKorespondenta && <details><summary>Dane kontaktowe zapisane przy piśmie</summary><DaneKontaktowe dane={pismo.daneKorespondenta} /></details>}</td>
                 <td>{pismo.znakPisma ?? <span className="brak">—</span>}
                   {pismo.kanal && <div className="drobne">{nazwyKanalow[pismo.kanal]}</div>}
                   {pismo.numerNadania && <div className="drobne">Nadanie: {pismo.numerNadania}</div>}

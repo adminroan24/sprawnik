@@ -6,10 +6,11 @@ import { WidokSprawy } from './komponenty/WidokSprawy';
 import { PrzegladTerminow } from './komponenty/PrzegladTerminow';
 import { Reguly } from './komponenty/Reguly';
 import { FirmaIDrzewo } from './komponenty/FirmaIDrzewo';
+import { KsiazkaAdresowa } from './komponenty/KsiazkaAdresowa';
 import { Skany } from './komponenty/Skany';
 import type { Uzytkownik, ProfilFirmy } from './typy';
 
-type Widok = { nazwa: 'sprawy' } | { nazwa: 'sprawa'; id: number } | { nazwa: 'terminy' } | { nazwa: 'reguly' } | { nazwa: 'skany' } | { nazwa: 'firma' };
+type Widok = { nazwa: 'sprawy' } | { nazwa: 'sprawa'; id: number } | { nazwa: 'terminy' } | { nazwa: 'reguly' } | { nazwa: 'skany' } | { nazwa: 'firma' } | { nazwa: 'kontakty' };
 
 export function App() {
   const [uzytkownik, setUzytkownik] = useState<Uzytkownik | null>(null);
@@ -56,6 +57,7 @@ export function App() {
           >
             Sprawy
           </button>
+          <button className={widok.nazwa === 'kontakty' ? 'aktywny' : ''} onClick={() => setWidok({ nazwa: 'kontakty' })}>Książka adresowa</button>
           {uzytkownik.rola === 'administrator' && <button
             className={widok.nazwa === 'skany' ? 'aktywny' : ''}
             onClick={() => setWidok({ nazwa: 'skany' })}>Skany</button>}
@@ -81,6 +83,7 @@ export function App() {
       </header>
 
       <main>
+        {widok.nazwa === 'kontakty' && <KsiazkaAdresowa administrator={uzytkownik.rola === 'administrator'} />}
         {widok.nazwa === 'firma' && uzytkownik.rola === 'administrator' && <FirmaIDrzewo poZmianieFirmy={setFirma} />}
         {widok.nazwa === 'skany' && uzytkownik.rola === 'administrator' && <Skany otworzSprawe={(id) => setWidok({ nazwa: 'sprawa', id })} />}
         {widok.nazwa === 'reguly' && uzytkownik.rola === 'administrator' && <Reguly />}

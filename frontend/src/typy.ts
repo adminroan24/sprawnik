@@ -38,6 +38,8 @@ export type Pismo = {
   kierunek: KierunekPisma;
   rodzaj: string;
   korespondent: string;
+  kontaktId: number | null;
+  daneKorespondenta: DaneKontaktu | null;
   znakPisma: string | null;
   dataNadania: string | null;
   dataDoreczenia: string | null;
@@ -124,3 +126,7 @@ export type PropozycjaTerminuSkanu = { ustawienia: UstawieniaTerminuSkanu; podst
 
 export type ProfilFirmy = { nazwa: string; nip: string; email: string; telefon: string; adres: string; stronaWww: string };
 export type GrupaSpraw = { id: number; rodzicId: number | null; nazwa: string; kolejnosc: number };
+
+export type DaneKontaktu = { typ: 'osoba' | 'firma' | 'instytucja'; nazwa: string; nip: string; email: string;
+  telefon: string; adres: string; adresEdoreczen: string; skrzynkaEpuap: string; osobaKontaktowa: string };
+export type Kontakt = DaneKontaktu & { id: number; notatka: string; aktywny: boolean };

@@ -56,6 +56,24 @@ entity "grupa_spraw" as grupa {
   * kolejnosc : integer
 }
 
+entity "kontakt" as kontakt {
+  * id : bigserial <<PK>>
+  --
+  * typ : text
+  * nazwa : text
+  * nip : text
+  * email : text
+  * telefon : text
+  * adres : text
+  * adres_edoreczen : text
+  * skrzynka_epuap : text
+  * osoba_kontaktowa : text
+  * notatka : text
+  * aktywny : boolean
+  * utworzono : timestamptz
+  * zmieniono : timestamptz
+}
+
 entity "pismo" as pismo {
   * id : bigserial <<PK>>
   --
@@ -63,6 +81,8 @@ entity "pismo" as pismo {
   * kierunek : kierunek_pisma
   * rodzaj : text
   * korespondent : text
+  kontakt_id : bigint <<FK>>
+  dane_korespondenta : jsonb
   znak_pisma : text
   data_nadania : date
   data_doreczenia : date
@@ -134,6 +154,7 @@ grupa      |o--o{ grupa       : podgrupy_bez_cykli
 grupa      |o--o{ sprawa      : klasyfikuje
 uzytkownik ||--o{ sprawa      : prowadzi
 uzytkownik ||--o{ dokument    : dodaje
+kontakt    |o--o{ pismo       : dane_z_ksiazki_i_kopia
 sprawa     ||--o{ pismo       : zawiera
 sprawa     ||--o{ termin      : ma
 pismo      ||--o{ dokument    : ma_zalaczone
@@ -162,6 +183,12 @@ note bottom of firma
   Jeden profil w instalacji, id = 1.
   Grupy są wspólne, sprawy zachowują
   dotychczasowego właściciela.
+end note
+
+note bottom of kontakt
+  Wspólna książka organizacji.
+  Przy piśmie pozostaje kopia danych.
+  Edycja kontaktu nie zmienia historii.
 end note
 
 @enduml
