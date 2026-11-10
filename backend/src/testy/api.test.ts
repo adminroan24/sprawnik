@@ -648,6 +648,44 @@ describe('skrzynka skanów i dopasowanie spraw', () => {
     const metrykaKosza = path.join(folder, 'archive', 'kosz', usuniety.tresc.koszId, 'metryka.json');
     assert.equal(JSON.parse(await readFile(metrykaKosza, 'utf8')).dataWplywu, '2026-11-08');
   });
+  it('pozwala ręcznie zapisać termin przy skanie, przelicza go po zmianie wpływu i przenosi do sprawy bez duplikatów', async () => {
+    const { api, pismoId, sprawaId } = await przygotuj(false);
+    const user = await zaloguj('termin-skanu-user@example.com');
+    const id = await skan();
+    const termin = { tryb: 'dni', liczbaDni: 7 };
+    assert.equal((await user.zmien(`/api/skany/${id}/termin-odpowiedzi`, { termin, potwierdzono: true })).kod, 403);
+    assert.equal((await api.wyslij(`/api/skany/${id}/termin-odpowiedzi/podglad`, termin)).kod, 400);
+    await api.zmien(`/api/skany/${id}/wplyw`, { dataWplywu: '2026-11-06' });
+    const podglad = await api.wyslij(`/api/skany/${id}/termin-odpowiedzi/podglad`, termin);
+    assert.equal(podglad.tresc.terminOdpowiedzi.dataUplywu, '2026-11-13');
+    assert.equal((await api.pobierz('/api/skany')).tresc.skany[0].terminOdpowiedzi, null);
+    assert.equal((await api.zmien(`/api/skany/${id}/termin-odpowiedzi`, { termin, potwierdzono: false })).kod, 400);
+    assert.equal((await api.zmien(`/api/skany/${id}/termin-odpowiedzi`, { termin, potwierdzono: true })).kod, 200);
+    assert.equal((await api.pobierz('/api/skany')).tresc.skany[0].terminOdpowiedzi.dataUplywu, '2026-11-13');
+    await api.zmien(`/api/skany/${id}/wplyw`, { dataWplywu: '2026-11-07' });
+    assert.equal((await api.pobierz('/api/skany')).tresc.skany[0].terminOdpowiedzi.dataUplywu, '2026-11-14');
+    await api.zmien(`/api/skany/${id}/wplyw`, { dataWplywu: '2026-11-06' });
+    await api.zmien(`/api/pisma/${pismoId}/doreczenie`, { dataDoreczenia: '2026-11-06' });
+    const imp = await api.wyslij(`/api/skany/${id}/import`, { pismoId, rola: 'tresc' });
+    assert.equal(imp.kod, 201); assert.ok(imp.tresc.terminId);
+    assert.equal((await api.pobierz(`/api/sprawy/${sprawaId}`)).tresc.terminy[0].dataUplywu, '2026-11-13');
+    await skan();
+    await api.zmien(`/api/skany/${id}/wplyw`, { dataWplywu: '2026-11-06' });
+    await api.zmien(`/api/skany/${id}/termin-odpowiedzi`, { termin, potwierdzono: true });
+    assert.equal((await api.wyslij(`/api/skany/${id}/import`, { pismoId, rola: 'tresc' })).kod, 201);
+    assert.equal((await api.pobierz(`/api/sprawy/${sprawaId}`)).tresc.terminy.length, 1);
+  });
+  it('zapisuje konkretną datę sprzed wpływu z ostrzeżeniem, a ponowny skan nie dziedziczy terminu', async () => {
+    const api = await zaloguj('termin-staly@example.com', 'administrator');
+    const id = await skan();
+    await api.zmien(`/api/skany/${id}/wplyw`, { dataWplywu: '2026-11-06' });
+    const wynik = await api.zmien(`/api/skany/${id}/termin-odpowiedzi`, { termin: { tryb: 'data', dataUplywu: '2026-11-05' }, potwierdzono: true });
+    assert.equal(wynik.kod, 200); assert.ok(wynik.tresc.terminOdpowiedzi.ostrzezenie);
+    await api.zmien(`/api/skany/${id}/wplyw`, { dataWplywu: '2026-11-07' });
+    assert.equal((await api.pobierz('/api/skany')).tresc.skany[0].terminOdpowiedzi.dataUplywu, '2026-11-05');
+    await skan();
+    assert.equal((await api.pobierz('/api/skany')).tresc.skany[0].terminOdpowiedzi, null);
+  });
   it('chroni wspólną skrzynkę i wyświetla pliki obu urządzeń bez dowiązań', async () => {
     const user = await zaloguj('inbox-user@example.com');
     assert.equal((await user.pobierz('/api/skany')).kod, 403);

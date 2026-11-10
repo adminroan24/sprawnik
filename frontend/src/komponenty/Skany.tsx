@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
+import { TerminOdpowiedziSkanu } from './TerminOdpowiedziSkanu';
+import type { TerminSkanu, PropozycjaTerminuSkanu } from '../typy';
 import { FormularzPisma } from './FormularzPisma';
 import { Komunikat, Pole } from './wspolne';
 import { nazwyRolDokumentow, type Regula, type RolaDokumentu, type SprawaNaLiscie, type WynikRejestracjiPisma, type SzczegolySprawy } from '../typy';
 
-type Skan = { id: string; nazwa: string; zrodlo: string; rozmiarBajtow: number; gotowy: boolean; zaDuzy: boolean; dataWplywu: string | null };
-type Rozpoznanie = { tekst: string; sha256: string; proponowanaSprawaId: number | null;
+type Skan = { id: string; nazwa: string; zrodlo: string; rozmiarBajtow: number; gotowy: boolean; zaDuzy: boolean; dataWplywu: string | null; terminOdpowiedzi: TerminSkanu | null };
+type Rozpoznanie = { propozycjeTerminow: PropozycjaTerminuSkanu[]; tekst: string; sha256: string; proponowanaSprawaId: number | null;
   propozycje: { sprawaId: number; tytul: string; pewnosc: 'wysoka' | 'niska'; powody: string[] }[] };
 
 export function Skany({ otworzSprawe }: { otworzSprawe: (id: number) => void }) {
@@ -55,11 +57,11 @@ export function Skany({ otworzSprawe }: { otworzSprawe: (id: number) => void }) 
     if (!wybrany || !data) return;
     setZajety(true); setBlad(null);
     try {
-      const zapis = await api.zmien<{ dataWplywu: string }>(`/skany/${wybrany.id}/wplyw`, {
+      const zapis = await api.zmien<{ dataWplywu: string; terminOdpowiedzi: TerminSkanu | null }>(`/skany/${wybrany.id}/wplyw`, {
         dataWplywu: data, sha256: rozpoznanie?.sha256,
       });
-      setWybrany(s => s ? { ...s, dataWplywu: zapis.dataWplywu } : s);
-      setSkany(lista => lista.map(s => s.id === wybrany.id ? { ...s, dataWplywu: zapis.dataWplywu } : s));
+      setWybrany(s => s ? { ...s, dataWplywu: zapis.dataWplywu, terminOdpowiedzi: zapis.terminOdpowiedzi } : s);
+      setSkany(lista => lista.map(s => s.id === wybrany.id ? { ...s, dataWplywu: zapis.dataWplywu, terminOdpowiedzi: zapis.terminOdpowiedzi } : s));
     } catch (e) { setBlad(e); } finally { setZajety(false); }
   }
   async function rozpoznaj() {
@@ -80,14 +82,15 @@ export function Skany({ otworzSprawe }: { otworzSprawe: (id: number) => void }) 
     try {
       if (pismo?.kierunek === 'przychodzace' && !pismo.dataDoreczenia && data) {
         const zapis = await api.zmien<WynikRejestracjiPisma>(`/pisma/${pismo.id}/doreczenie`, {
-          dataDoreczenia: data, regulaId: regulaDoreczenia ? Number(regulaDoreczenia) : null,
+          dataDoreczenia: data, regulaId: !wybrany.terminOdpowiedzi && regulaDoreczenia ? Number(regulaDoreczenia) : null,
         });
         setSzczegoly(s => s ? { ...s, pisma: s.pisma.map(p => p.id === zapis.pismo.id ? zapis.pismo : p) } : s);
-        setWynikTerminu(zapis.termin ? `Termin: ${zapis.termin.czynnosc} — ${zapis.termin.dataUplywu.split('-').reverse().join('.')}.` : 'Data zapisana. Nie wyznaczono terminu — brak wybranej reguły.');
+        setWynikTerminu(wybrany.terminOdpowiedzi ? 'Data doręczenia zapisana. Termin ze skanu zostanie dodany podczas importu dokumentu.' : zapis.termin ? `Termin: ${zapis.termin.czynnosc} — ${zapis.termin.dataUplywu.split('-').reverse().join('.')}.` : 'Data zapisana. Nie wyznaczono terminu — brak wybranej reguły.');
       }
-      const wynik = await api.wyslij<{ ostrzezenie: string | null }>(`/skany/${wybrany.id}/import`, {
+      const wynik = await api.wyslij<{ ostrzezenie: string | null; terminId: number | null }>(`/skany/${wybrany.id}/import`, {
         pismoId: Number(pismoId), rola, sha256: rozpoznanie?.sha256,
       });
+      if (wynik.terminId && wybrany.terminOdpowiedzi) setWynikTerminu(`Termin odpowiedzi / wykonania zapisano w sprawie: ${wybrany.terminOdpowiedzi.dataUplywu.split('-').reverse().join('.')}.`);
       setKomunikat(wynik.ostrzezenie ?? 'Dokument dodano do pisma, a skan przeniesiono do archiwum.');
       setWybrany(null); setRozpoznanie(null); await odswiez();
     } catch (e) { setBlad(e); } finally { setZajety(false); }
@@ -118,12 +121,12 @@ export function Skany({ otworzSprawe }: { otworzSprawe: (id: number) => void }) 
       <button disabled={zajety} onClick={() => setUsuniecie(null)}>Anuluj usunięcie</button>
     </div>}
     {skany.length === 0 && <p>Brak skanów oczekujących na przypisanie.</p>}
-    {skany.length > 0 && <div className="karta"><table><thead><tr><th>Plik</th><th>Skaner</th><th>Data wpływu</th><th>Rozmiar</th><th>Wybór</th></tr></thead>
-      <tbody>{skany.map(s => <tr key={s.id}><td>{s.nazwa}</td><td>{s.zrodlo}</td><td>{s.dataWplywu ? s.dataWplywu.split('-').reverse().join('.') : 'Nie zapisano'}</td><td>{Math.ceil(s.rozmiarBajtow / 1024)} KB</td>
+    {skany.length > 0 && <div className="karta"><table><thead><tr><th>Plik</th><th>Skaner</th><th>Data wpływu</th><th>Termin odpowiedzi / wykonania</th><th>Rozmiar</th><th>Wybór</th></tr></thead>
+      <tbody>{skany.map(s => <tr key={s.id}><td>{s.nazwa}</td><td>{s.zrodlo}</td><td>{s.dataWplywu ? s.dataWplywu.split('-').reverse().join('.') : 'Nie zapisano'}</td><td>{s.terminOdpowiedzi ? s.terminOdpowiedzi.dataUplywu.split('-').reverse().join('.') : 'Nie ustawiono'}</td><td>{Math.ceil(s.rozmiarBajtow / 1024)} KB</td>
         <td><button disabled={zajety || !s.gotowy || s.zaDuzy} onClick={() => wybierz(s)}>
           {s.zaDuzy ? 'Przekracza 10 MiB' : !s.gotowy ? 'Trwa odbiór…' : wybrany?.id === s.id ? 'Wybrany' : 'Wybierz'}</button> <button disabled={zajety || !s.gotowy} onClick={() => { setUsuniecie(s); setPowodUsuniecia(''); setBlad(null); }}>Usuń skan</button></td></tr>)}</tbody></table></div>}
     {wybrany && <div className="karta formularz"><h2>{wybrany.nazwa}</h2>
-      <button disabled={zajety} onClick={rozpoznaj}>{zajety ? 'Przetwarzanie…' : 'Rozpoznaj tekst i sprawę'}</button>
+      <button disabled={zajety} onClick={rozpoznaj}>{zajety ? 'Przetwarzanie…' : 'Rozpoznaj tekst, sprawę i termin'}</button>
       <div className="data-wplywu">
         <Pole etykieta="Data wpływu / doręczenia"><input type="date" value={data} readOnly={Boolean(pismo?.dataDoreczenia)} disabled={zajety}
           onChange={e => setDataWplywu(e.target.value)} /></Pole>
@@ -137,6 +140,14 @@ export function Skany({ otworzSprawe }: { otworzSprawe: (id: number) => void }) 
         <p>{pismo?.dataDoreczenia ? 'Pismo ma już zapisaną datę doręczenia. Dodanie skanu jej nie zmieni.' :
           'Wpisz rzeczywisty dzień otrzymania pisma. Dzień skanowania nie jest datą wpływu. Data jest wymagana przy dodawaniu treści pisma przychodzącego.'}</p>
       </div>
+      <TerminOdpowiedziSkanu key={`${wybrany.id}/${wybrany.terminOdpowiedzi?.dataUplywu ?? ''}/${wybrany.dataWplywu ?? ''}`}
+        id={wybrany.id} dataWplywu={data} dataZapisana={Boolean(data && data === wybrany.dataWplywu)} zapisany={wybrany.terminOdpowiedzi ?? null}
+        propozycje={rozpoznanie?.propozycjeTerminow ?? []} ocrWykonany={Boolean(rozpoznanie)} odczytaj={rozpoznaj} zajety={zajety} ustawZajety={setZajety}
+        poZapisaniu={termin => {
+          const id = wybrany.id;
+          setWybrany(s => s?.id === id ? { ...s, terminOdpowiedzi: termin } : s);
+          setSkany(lista => lista.map(s => s.id === id ? { ...s, terminOdpowiedzi: termin } : s));
+        }} />
       {rozpoznanie && <>
         <p>{rozpoznanie.proponowanaSprawaId ? 'Znaleziono jedną sprawę ze zgodnym znakiem. Sprawdź wybór przed dodaniem dokumentu.' :
           rozpoznanie.propozycje.length ? 'Wybierz sprawę spośród propozycji lub z listy poniżej.' : 'Brak dopasowania. Wybierz sprawę ręcznie.'}</p>
@@ -151,7 +162,7 @@ export function Skany({ otworzSprawe }: { otworzSprawe: (id: number) => void }) 
       {szczegoly && <>
         <Pole etykieta="Pismo, do którego dodasz skan"><select disabled={zajety} value={pismoId} onChange={e => { setPismoId(e.target.value); setRegulaDoreczenia(''); setWynikTerminu(''); }}>
           <option value="">Wybierz pismo</option>{szczegoly.pisma.map(p => <option key={p.id} value={p.id}>#{p.id} {p.rodzaj} — {p.korespondent}</option>)}</select></Pole>
-        {pismo?.kierunek === 'przychodzace' && !pismo.dataDoreczenia && <>
+        {pismo?.kierunek === 'przychodzace' && !pismo.dataDoreczenia && !wybrany.terminOdpowiedzi && <>
           <Pole etykieta="Reguła terminu od wpływu / doręczenia"><select disabled={zajety} value={regulaDoreczenia} onChange={e => setRegulaDoreczenia(e.target.value)}>
             <option value="">Bez wyznaczania terminu</option>{reguly.filter(r => r.zdarzeniePoczatkowe === 'doreczenie').map(r => <option key={r.id} value={r.id}>{r.nazwa} — {r.liczbaDni} {r.sposobLiczenia === 'dni_robocze' ? 'dni roboczych' : 'dni'}</option>)}</select></Pole>
           <p>{regulaDoreczenia ? 'Termin zostanie wyznaczony według wybranej reguły i wpisanej daty doręczenia.' : 'Nie wybrano reguły — samo dodanie daty nie utworzy terminu. Sprawdź termin wskazany w piśmie.'}</p>
@@ -162,7 +173,7 @@ export function Skany({ otworzSprawe }: { otworzSprawe: (id: number) => void }) 
         <button disabled={zajety || !pismoId || nowePismo || (wymaganaData && !data)} onClick={importuj}>Potwierdź i dodaj dokument do pisma</button>
       </>}
     </div>}
-    {wybrany && szczegoly && nowePismo && <FormularzPisma key={`${wybrany.id}/${sprawaId}`} sprawaId={Number(sprawaId)} pisma={szczegoly.pisma} reguly={reguly} wplywSkanu={{ data: dataWplywu, wymagana: rola === 'tresc' }}
-      poZapisaniu={wynik => { setWynikTerminu(wynik.termin ? `Termin: ${wynik.termin.czynnosc} — ${wynik.termin.dataUplywu.split('-').reverse().join('.')}.` : 'Pismo zapisano bez terminu. Sprawdź regułę i termin wskazany w piśmie.'); setSzczegoly({ ...szczegoly, pisma: [...szczegoly.pisma, wynik.pismo] }); setPismoId(String(wynik.pismo.id)); setNowePismo(false); }} />}
+    {wybrany && szczegoly && nowePismo && <FormularzPisma key={`${wybrany.id}/${sprawaId}`} sprawaId={Number(sprawaId)} pisma={szczegoly.pisma} reguly={wybrany.terminOdpowiedzi ? [] : reguly} wplywSkanu={{ data: dataWplywu, wymagana: rola === 'tresc' }}
+      poZapisaniu={wynik => { setWynikTerminu(wybrany.terminOdpowiedzi ? 'Pismo zapisano. Termin ze skanu zostanie dodany podczas importu dokumentu.' : wynik.termin ? `Termin: ${wynik.termin.czynnosc} — ${wynik.termin.dataUplywu.split('-').reverse().join('.')}.` : 'Pismo zapisano bez terminu. Sprawdź regułę i termin wskazany w piśmie.'); setSzczegoly({ ...szczegoly, pisma: [...szczegoly.pisma, wynik.pismo] }); setPismoId(String(wynik.pismo.id)); setNowePismo(false); }} />}
   </section>;
 }

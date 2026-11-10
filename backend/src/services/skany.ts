@@ -8,7 +8,11 @@ import { LIMIT_PLIKU, zapiszDokument } from './dokumenty.js';
 import { odczytajTekstPliku } from './ocr.js';
 import { dopasujSprawy } from './dopasowanie.js';
 import { sprawyUzytkownika } from '../db/dopasowanie.js';
-import { pool } from '../db/pool.js';
+import { pool, wTransakcji } from '../db/pool.js';
+import { wczytajKalendarz } from '../db/kalendarz.js';
+import * as pismaDb from '../db/pisma.js';
+import * as terminyDb from '../db/terminy.js';
+import { odczytajTerminyOdpowiedzi, wyliczTerminOdpowiedzi, type UstawieniaTerminu, type TerminZeSkanu } from './termin-odpowiedzi.js';
 import * as dokumentyDb from '../db/dokumenty.js';
 
 const ZRODLA = ['epson', 'kyocera'] as const;
@@ -19,7 +23,7 @@ const archiwum = () => path.resolve(process.env.SCAN_ARCHIVE_DIR ?? path.join(ka
 const hash = (plik: Buffer) => createHash('sha256').update(plik).digest('hex');
 const odcisk = (stat: Stats) => `${stat.ino}:${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}`;
 const plikMetadanych = (id: string) => path.join(archiwum(), 'metadane-skanow', hash(Buffer.from(id)) + '.json');
-type MetadaneSkanu = { dataWplywu: string; sha256: string; odcisk: string; zapisalUzytkownikId: number; zapisano: string };
+type MetadaneSkanu = { dataWplywu: string; sha256: string; odcisk: string; zapisalUzytkownikId: number; zapisano: string; terminOdpowiedzi?: TerminZeSkanu };
 
 async function metadaneSkanu(id: string, stat: Stats): Promise<MetadaneSkanu | null> {
   try {
@@ -59,7 +63,7 @@ export async function listaSkanow() {
       if (!stat?.isFile()) continue;
       const id = Buffer.from(`${zrodlo}/${plik.name}`).toString('base64url');
       const metadane = await metadaneSkanu(id, stat);
-      skany.push({ id, dataWplywu: metadane?.dataWplywu ?? null,
+      skany.push({ id, dataWplywu: metadane?.dataWplywu ?? null, terminOdpowiedzi: metadane?.terminOdpowiedzi ?? null,
         nazwa: plik.name, zrodlo, rozmiarBajtow: stat.size, zmieniono: stat.mtime.toISOString(),
         gotowy: Date.now() - stat.mtimeMs >= 10_000, zaDuzy: stat.size > LIMIT_PLIKU });
     }
@@ -87,28 +91,65 @@ async function odczytaj(id: string) {
   } finally { await uchwyt.close(); }
 }
 
+async function zapiszMetadane(id: string, dane: MetadaneSkanu) {
+  const docelowy = plikMetadanych(id);
+  await mkdir(path.dirname(docelowy), { recursive: true, mode: 0o700 });
+  const tymczasowy = docelowy + '.' + randomUUID() + '.tmp';
+  try {
+    await writeFile(tymczasowy, JSON.stringify(dane), { flag: 'wx', mode: 0o600 });
+    await rename(tymczasowy, docelowy);
+  } finally { await unlink(tymczasowy).catch(() => undefined); }
+}
+
 /** Zapis niezależny od sprawy i pisma. Metadane są poza udziałem skanerów. */
 export async function zapiszDateWplywu(id: string, dataWplywu: string, uzytkownikId: number, oczekiwanyHash?: string) {
   if (aktywneImporty.has(id)) throw new BladZadania(409, 'Ten skan jest już przetwarzany');
   aktywneImporty.add(id);
-  let tymczasowy: string | undefined;
   try {
     const skan = await odczytaj(id);
     if (oczekiwanyHash && skan.sha256 !== oczekiwanyHash) {
       throw new BladZadania(409, 'Skan zmienił się od rozpoznania. Wybierz i sprawdź plik ponownie.');
     }
+    const poprzednie = await metadaneSkanu(id, skan.stat);
+    const terminOdpowiedzi = poprzednie?.terminOdpowiedzi ? wyliczTerminOdpowiedzi(
+      poprzednie.terminOdpowiedzi.ustawienia, dataWplywu, await wczytajKalendarz()) : undefined;
     const dane: MetadaneSkanu = { dataWplywu, sha256: skan.sha256, odcisk: odcisk(skan.stat),
-      zapisalUzytkownikId: uzytkownikId, zapisano: new Date().toISOString() };
-    const docelowy = plikMetadanych(id);
-    await mkdir(path.dirname(docelowy), { recursive: true, mode: 0o700 });
-    tymczasowy = docelowy + '.' + randomUUID() + '.tmp';
-    await writeFile(tymczasowy, JSON.stringify(dane), { flag: 'wx', mode: 0o600 });
-    await rename(tymczasowy, docelowy);
-    return { dataWplywu, zapisano: dane.zapisano };
-  } finally {
-    if (tymczasowy) await unlink(tymczasowy).catch(() => undefined);
-    aktywneImporty.delete(id);
-  }
+      zapisalUzytkownikId: uzytkownikId, zapisano: new Date().toISOString(), terminOdpowiedzi };
+    await zapiszMetadane(id, dane);
+    return { dataWplywu, zapisano: dane.zapisano, terminOdpowiedzi: terminOdpowiedzi ?? null };
+  } finally { aktywneImporty.delete(id); }
+}
+
+export async function terminOdpowiedziSkanu(id: string, ustawienia: UstawieniaTerminu, zapisuj: boolean, uzytkownikId: number) {
+  if (aktywneImporty.has(id)) throw new BladZadania(409, 'Ten skan jest już przetwarzany');
+  aktywneImporty.add(id);
+  try {
+    const skan = await odczytaj(id);
+    const metadane = await metadaneSkanu(id, skan.stat);
+    if (!metadane || metadane.sha256 !== skan.sha256) throw new BladZadania(400, 'Najpierw zapisz datę wpływu tego skanu');
+    const terminOdpowiedzi = wyliczTerminOdpowiedzi(ustawienia, metadane.dataWplywu, await wczytajKalendarz());
+    if (zapisuj) await zapiszMetadane(id, { ...metadane, terminOdpowiedzi,
+      zapisalUzytkownikId: uzytkownikId, zapisano: new Date().toISOString() });
+    return { terminOdpowiedzi };
+  } finally { aktywneImporty.delete(id); }
+}
+
+async function przeniesTerminDoSprawy(pismoId: number, termin: TerminZeSkanu) {
+  return wTransakcji(async wykonawca => {
+    const pismo = await pismaDb.znajdz(pismoId, wykonawca, true);
+    if (!pismo) throw bladBrakZasobu('Pismo nie istnieje');
+    const { rows } = await wykonawca.query<{ id: number; data: string }>(
+      `SELECT id, data_uplywu AS data FROM termin WHERE pismo_id = $1 AND status <> 'anulowany'
+       AND czynnosc = 'Termin odpowiedzi / wykonania' ORDER BY id LIMIT 1`, [pismoId]);
+    if (rows[0]) {
+      if (rows[0].data !== termin.dataUplywu) throw new BladZadania(409, 'Pismo ma inny termin odpowiedzi. Sprawdź terminy w sprawie przed importem.');
+      return rows[0].id;
+    }
+    const nowy = await terminyDb.dodaj({ sprawaId: pismo.sprawaId, pismoId, regulaId: null,
+      czynnosc: 'Termin odpowiedzi / wykonania', dataPoczatkowa: termin.dataPoczatkowa,
+      dataUplywu: termin.dataUplywu, sposobWyznaczenia: 'reczny' }, wykonawca);
+    return nowy.id;
+  });
 }
 
 export async function rozpoznajSkan(id: string, uzytkownikId: number) {
@@ -120,7 +161,7 @@ export async function rozpoznajSkan(id: string, uzytkownikId: number) {
     cache.set(skan.sha256, wynik);
   }
   const propozycje = dopasujSprawy(wynik.tekst, await sprawyUzytkownika(uzytkownikId));
-  return { ...wynik, sha256: skan.sha256, propozycje,
+  return { ...wynik, sha256: skan.sha256, propozycje, propozycjeTerminow: odczytajTerminyOdpowiedzi(wynik.tekst),
     proponowanaSprawaId: propozycje.length === 1 && propozycje[0]!.pewnosc === 'wysoka' ? propozycje[0]!.sprawaId : null };
 }
 
@@ -140,6 +181,7 @@ export async function usunSkan(id: string, uzytkownikId: number, powod: string) 
     await writeFile(path.join(folder, 'metryka.json'), JSON.stringify({
       nazwa: skan.nazwa, zrodlo: skan.zrodlo, uzytkownikId, powod,
       dataWplywu: (await metadaneSkanu(id, stat))?.dataWplywu ?? null,
+      terminOdpowiedzi: (await metadaneSkanu(id, stat))?.terminOdpowiedzi ?? null,
       usunieto: new Date().toISOString(), rozmiarBajtow: stat.size,
     }), { flag: 'wx', mode: 0o600 });
     await rename(skan.sciezka, path.join(folder, skan.nazwa));
@@ -156,6 +198,12 @@ export async function importujSkan(id: string, uzytkownikId: number, pismoId: nu
     if (oczekiwanyHash && skan.sha256 !== oczekiwanyHash) {
       throw new BladZadania(409, 'Skan zmienił się od rozpoznania. Wykonaj odczyt ponownie.');
     }
+    const metadane = await metadaneSkanu(id, skan.stat);
+    const pismo = await pismaDb.znajdz(pismoId);
+    const terminZeSkanu = rola === 'tresc' && pismo?.kierunek === 'przychodzace' && metadane?.sha256 === skan.sha256 ? metadane.terminOdpowiedzi : null;
+    if (terminZeSkanu && pismo?.dataDoreczenia !== metadane?.dataWplywu) {
+      throw new BladZadania(409, 'Data doręczenia pisma różni się od daty wpływu skanu. Sprawdź wybrane pismo.');
+    }
     const { rows } = await pool.query<{ id: number }>(
       'SELECT id FROM dokument WHERE pismo_id = $1 AND suma_kontrolna = $2 AND rola = $3 LIMIT 1',
       [pismoId, skan.sha256, rola]);
@@ -167,6 +215,7 @@ export async function importujSkan(id: string, uzytkownikId: number, pismoId: nu
     if (!dokument) throw new BladZadania(500, 'Nie udało się potwierdzić zapisu dokumentu');
     const ocr = cache.get(skan.sha256);
     if (ocr) await dokumentyDb.zapiszOcr(dokument.id, ocr.tekst, ocr.liczbaStron);
+    const terminId = terminZeSkanu ? await przeniesTerminDoSprawy(pismoId, terminZeSkanu) : null;
     let archiwizowano = false;
     try {
       const aktualny = await odczytaj(id);
@@ -177,13 +226,13 @@ export async function importujSkan(id: string, uzytkownikId: number, pismoId: nu
         await rename(skan.sciezka, docelowy);
         archiwizowano = true;
         await writeFile(docelowy + '.json', JSON.stringify({ nazwa: skan.nazwa, zrodlo: skan.zrodlo,
-          dataWplywu: (await metadaneSkanu(id, skan.stat))?.dataWplywu ?? null,
+          dataWplywu: metadane?.dataWplywu ?? null, terminOdpowiedzi: metadane?.terminOdpowiedzi ?? null,
           dokumentId: dokument.id, pismoId, sha256: skan.sha256, zaimportowano: new Date().toISOString() }),
         { flag: 'wx', mode: 0o600 }).catch(() => undefined);
       }
     } catch { /* Dokument jest zapisany; błąd archiwizacji nie może udawać błędu importu. */ }
     const { nazwaWMagazynie: _magazyn, ...publicznyDokument } = dokument;
-    return { dokument: { ...publicznyDokument, ocrGotowy: Boolean(ocr) || dokument.ocrGotowy }, archiwizowano, ostrzezenie: archiwizowano ? null :
+    return { terminId, dokument: { ...publicznyDokument, ocrGotowy: Boolean(ocr) || dokument.ocrGotowy }, archiwizowano, ostrzezenie: archiwizowano ? null :
       'Dokument zapisano w sprawie. Plik pozostał w poczekalni, ponieważ nie udało się go przenieść do archiwum.' };
   } finally { aktywneImporty.delete(id); }
 }

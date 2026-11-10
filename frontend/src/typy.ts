@@ -112,3 +112,11 @@ export type WynikRejestracjiPisma = {
   termin: Termin | null;
   powodBrakuTerminu: string | null;
 };
+
+export type UstawieniaTerminuSkanu = { zrodlo: 'reczny' | 'ocr'; fragment: string } & (
+  { tryb: 'dni'; liczbaDni: number; sposobLiczenia: 'dni_kalendarzowe' | 'dni_robocze'; przesuwajDniWolne: boolean; dataPoczatkowa: string | null } |
+  { tryb: 'data'; dataUplywu: string }
+);
+export type TerminSkanu = { ustawienia: UstawieniaTerminuSkanu; dataPoczatkowa: string; dataUplywu: string;
+  dataUplywuPrzedPrzesunieciem: string; ostrzezenie: string | null };
+export type PropozycjaTerminuSkanu = { ustawienia: UstawieniaTerminuSkanu; podstawa: 'wplyw' | 'inna' | 'data'; fragment: string };

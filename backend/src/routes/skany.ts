@@ -4,7 +4,8 @@ import { wymagaZalogowania, wymagaAdministratora, zalogowany } from '../middlewa
 import { bladBrakZasobu, bladWalidacji } from '../middleware/errors.js';
 import { dataIso, identyfikator, sprawaUzytkownika } from './wspolne.js';
 import { znajdz } from '../db/pisma.js';
-import { listaSkanow, rozpoznajSkan, importujSkan, usunSkan, zapiszDateWplywu } from '../services/skany.js';
+import { listaSkanow, rozpoznajSkan, importujSkan, usunSkan, zapiszDateWplywu, terminOdpowiedziSkanu } from '../services/skany.js';
+import { ustawieniaTerminu } from '../services/termin-odpowiedzi.js';
 
 export const skanyRouter = Router();
 skanyRouter.use(wymagaZalogowania, wymagaAdministratora);
@@ -25,6 +26,16 @@ skanyRouter.patch('/:id/wplyw', async (req, res) => {
 
 skanyRouter.post('/:id/rozpoznaj', async (req, res) => {
   res.json(await rozpoznajSkan(idSkanu.parse(req.params.id), zalogowany(req).id));
+});
+
+skanyRouter.post('/:id/termin-odpowiedzi/podglad', async (req, res) => {
+  const dane = ustawieniaTerminu.parse(req.body);
+  res.json(await terminOdpowiedziSkanu(idSkanu.parse(req.params.id), dane, false, zalogowany(req).id));
+});
+
+skanyRouter.patch('/:id/termin-odpowiedzi', async (req, res) => {
+  const dane = z.object({ termin: ustawieniaTerminu, potwierdzono: z.literal(true) }).parse(req.body);
+  res.json(await terminOdpowiedziSkanu(idSkanu.parse(req.params.id), dane.termin, true, zalogowany(req).id));
 });
 
 skanyRouter.post('/:id/kosz', async (req, res) => {
