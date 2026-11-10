@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { constants } from 'node:fs';
-import { mkdir, open, readdir, lstat, rename, writeFile } from 'node:fs/promises';
+import { constants, type Stats } from 'node:fs';
+import { mkdir, open, readdir, readFile, lstat, rename, writeFile, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { env } from '../config/env.js';
 import { BladZadania, bladBrakZasobu } from '../middleware/errors.js';
@@ -17,6 +17,16 @@ const cache = new Map<string, Awaited<ReturnType<typeof odczytajTekstPliku>>>();
 const katalog = () => path.resolve(process.env.SCAN_INBOX_DIR ?? path.join(env.uploadDir, '..', 'skany'));
 const archiwum = () => path.resolve(process.env.SCAN_ARCHIVE_DIR ?? path.join(katalog(), '..', 'skany-archiwum'));
 const hash = (plik: Buffer) => createHash('sha256').update(plik).digest('hex');
+const odcisk = (stat: Stats) => `${stat.ino}:${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}`;
+const plikMetadanych = (id: string) => path.join(archiwum(), 'metadane-skanow', hash(Buffer.from(id)) + '.json');
+type MetadaneSkanu = { dataWplywu: string; sha256: string; odcisk: string; zapisalUzytkownikId: number; zapisano: string };
+
+async function metadaneSkanu(id: string, stat: Stats): Promise<MetadaneSkanu | null> {
+  try {
+    const dane = JSON.parse(await readFile(plikMetadanych(id), 'utf8')) as MetadaneSkanu;
+    return dane.odcisk === odcisk(stat) && /^\d{4}-\d{2}-\d{2}$/.test(dane.dataWplywu) ? dane : null;
+  } catch { return null; }
+}
 
 async function zwyklyFolder(zrodlo: string) {
   const stat = await lstat(path.join(katalog(), zrodlo)).catch(() => null);
@@ -47,7 +57,9 @@ export async function listaSkanow() {
       if (!plik.isFile() || plik.name.startsWith('.') || !/\.(pdf|png|jpe?g)$/i.test(plik.name)) continue;
       const stat = await lstat(path.join(folder, plik.name)).catch(() => null);
       if (!stat?.isFile()) continue;
-      skany.push({ id: Buffer.from(`${zrodlo}/${plik.name}`).toString('base64url'),
+      const id = Buffer.from(`${zrodlo}/${plik.name}`).toString('base64url');
+      const metadane = await metadaneSkanu(id, stat);
+      skany.push({ id, dataWplywu: metadane?.dataWplywu ?? null,
         nazwa: plik.name, zrodlo, rozmiarBajtow: stat.size, zmieniono: stat.mtime.toISOString(),
         gotowy: Date.now() - stat.mtimeMs >= 10_000, zaDuzy: stat.size > LIMIT_PLIKU });
     }
@@ -71,8 +83,32 @@ async function odczytaj(id: string) {
     if (po.mtimeMs !== przed.mtimeMs || po.size !== przed.size || plik.length !== przed.size) {
       throw new BladZadania(409, 'Plik zmienił się podczas odczytu. Spróbuj ponownie po zakończeniu odbioru.');
     }
-    return { ...info, plik, sha256: hash(plik) };
+    return { ...info, plik, sha256: hash(plik), stat: po };
   } finally { await uchwyt.close(); }
+}
+
+/** Zapis niezależny od sprawy i pisma. Metadane są poza udziałem skanerów. */
+export async function zapiszDateWplywu(id: string, dataWplywu: string, uzytkownikId: number, oczekiwanyHash?: string) {
+  if (aktywneImporty.has(id)) throw new BladZadania(409, 'Ten skan jest już przetwarzany');
+  aktywneImporty.add(id);
+  let tymczasowy: string | undefined;
+  try {
+    const skan = await odczytaj(id);
+    if (oczekiwanyHash && skan.sha256 !== oczekiwanyHash) {
+      throw new BladZadania(409, 'Skan zmienił się od rozpoznania. Wybierz i sprawdź plik ponownie.');
+    }
+    const dane: MetadaneSkanu = { dataWplywu, sha256: skan.sha256, odcisk: odcisk(skan.stat),
+      zapisalUzytkownikId: uzytkownikId, zapisano: new Date().toISOString() };
+    const docelowy = plikMetadanych(id);
+    await mkdir(path.dirname(docelowy), { recursive: true, mode: 0o700 });
+    tymczasowy = docelowy + '.' + randomUUID() + '.tmp';
+    await writeFile(tymczasowy, JSON.stringify(dane), { flag: 'wx', mode: 0o600 });
+    await rename(tymczasowy, docelowy);
+    return { dataWplywu, zapisano: dane.zapisano };
+  } finally {
+    if (tymczasowy) await unlink(tymczasowy).catch(() => undefined);
+    aktywneImporty.delete(id);
+  }
 }
 
 export async function rozpoznajSkan(id: string, uzytkownikId: number) {
@@ -103,6 +139,7 @@ export async function usunSkan(id: string, uzytkownikId: number, powod: string) 
     await mkdir(folder, { recursive: true, mode: 0o700 });
     await writeFile(path.join(folder, 'metryka.json'), JSON.stringify({
       nazwa: skan.nazwa, zrodlo: skan.zrodlo, uzytkownikId, powod,
+      dataWplywu: (await metadaneSkanu(id, stat))?.dataWplywu ?? null,
       usunieto: new Date().toISOString(), rozmiarBajtow: stat.size,
     }), { flag: 'wx', mode: 0o600 });
     await rename(skan.sciezka, path.join(folder, skan.nazwa));
@@ -140,6 +177,7 @@ export async function importujSkan(id: string, uzytkownikId: number, pismoId: nu
         await rename(skan.sciezka, docelowy);
         archiwizowano = true;
         await writeFile(docelowy + '.json', JSON.stringify({ nazwa: skan.nazwa, zrodlo: skan.zrodlo,
+          dataWplywu: (await metadaneSkanu(id, skan.stat))?.dataWplywu ?? null,
           dokumentId: dokument.id, pismoId, sha256: skan.sha256, zaimportowano: new Date().toISOString() }),
         { flag: 'wx', mode: 0o600 }).catch(() => undefined);
       }

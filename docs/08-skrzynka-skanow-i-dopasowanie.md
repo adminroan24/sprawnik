@@ -42,3 +42,11 @@ Przy rejestracji nowego pisma data z sekcji skanu trafia do `dataDoreczenia`. Re
 Przycisk **Usuń skan** przy pliku otwiera potwierdzenie z opcjonalnym powodem. Potwierdzenie wywołuje `POST /api/skany/:id/kosz` (administrator). Plik znika z poczekalni i trafia do `SCAN_ARCHIVE_DIR/kosz/<uuid>/` wraz z metryką, bez trwałego kasowania. Nie zmienia dokumentów już zapisanych w sprawach. Plik można odzyskać ręcznie z kosza do właściwego katalogu urządzenia; nie ma jeszcze przycisku przywracania w aplikacji. Plik w trakcie odbioru i dowiązania są odrzucane, a import i usunięcie tego samego skanu wzajemnie się blokują. Można usunąć do kosza również plik przekraczający limit importu.
 
 Weryfikacja aktualizacji: 24 testy silnika/dopasowania i 34 API (58 poprawnych, bez pominięć), typecheck obu warstw i build interfejsu. Testy obejmują zachowanie daty 06.11.2026 i terminu według fikcyjnej reguły po późniejszym imporcie, blokadę importu treści bez daty oraz kosz, zachowanie oryginału i istniejących dokumentów. Fikcyjna reguła testowa nie określa terminu żadnego rzeczywistego wezwania.
+
+### Zapis daty przed wyborem sprawy — kolejna aktualizacja 10.11.2026
+
+Przycisk **Zapisz** obok daty wpływu zapisuje datę od razu przy skanie, bez wyboru sprawy, pisma ani uruchamiania OCR. Potwierdzenie „Zapisano datę wpływu” pojawia się dopiero po odpowiedzi serwera. Po zmianie daty interfejs prosi o ponowny zapis. Lista skanów ma kolumnę **Data wpływu**; ponowny wybór skanu wczytuje zapisaną datę również po odświeżeniu strony.
+
+`PATCH /api/skany/:id/wplyw` jest dostępny administratorowi. Metadane daty zapisują się atomowo w `SCAN_ARCHIVE_DIR/metadane-skanow/`, poza udziałem skanerów, z prawami 0600. Rekord zawiera datę, identyfikator zapisującego, czas zapisu, SHA-256 oraz identyfikację wersji pliku (inode, rozmiar, mtime i ctime). Podmieniony lub ponownie zapisany plik o tej samej nazwie nie dziedziczy wcześniejszej daty. Metadane muszą być uwzględnione w kopii zapasowej razem z archiwum; nie należy ich edytować ręcznie. Data zachowana jest również w metryce importu lub kosza.
+
+Zapis daty przy skanie nie tworzy sam terminu ani doręczenia w nieistniejącym piśmie. Późniejsze przypisanie do pisma korzysta z zapisanej daty; termin zależy od wybranej reguły, zgodnie z poprzednią sekcją.

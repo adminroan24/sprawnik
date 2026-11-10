@@ -12,7 +12,7 @@ import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
 import * as uzytkownicy from '../db/uzytkownicy.js';
 import { zahaszujHaslo } from '../services/uwierzytelnianie.js';
 import { createHash } from 'node:crypto';
-import { writeFile, unlink, rm, readFile, mkdtemp, mkdir, utimes, symlink, readdir } from 'node:fs/promises';
+import { writeFile, unlink, rm, readFile, mkdtemp, mkdir, utimes, symlink, readdir, stat } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { env } from '../config/env.js';
@@ -606,6 +606,48 @@ describe('skrzynka skanów i dopasowanie spraw', () => {
     const p = await api.wyslij(`/api/sprawy/${s.tresc.sprawa.id}/pisma`, { kierunek: 'przychodzace', rodzaj: 'Pismo', korespondent: 'Test', dataDoreczenia: zData ? '2026-11-06' : null });
     return { api, sprawaId: s.tresc.sprawa.id, pismoId: p.tresc.pismo.id };
   }
+  it('zapisuje datę wpływu na dysku przed wyborem sprawy i odczytuje ją przy kolejnym pobraniu listy', async () => {
+    const api = await zaloguj('data-skanu@example.com', 'administrator');
+    const user = await zaloguj('data-skanu-user@example.com');
+    const id = await skan();
+    assert.equal((await api.pobierz('/api/sprawy')).tresc.sprawy.length, 0);
+    assert.equal((await user.zmien(`/api/skany/${id}/wplyw`, { dataWplywu: '2026-11-06' })).kod, 403);
+    for (const data of ['', '2026-02-31', '2026-13-01']) {
+      assert.equal((await api.zmien(`/api/skany/${id}/wplyw`, { dataWplywu: data })).kod, 400);
+    }
+    assert.equal((await api.zmien(`/api/skany/${id}/wplyw`, { dataWplywu: '2026-11-06', sha256: '0'.repeat(64) })).kod, 409);
+    const zapis = await api.zmien(`/api/skany/${id}/wplyw`, { dataWplywu: '2026-11-06' });
+    assert.equal(zapis.kod, 200);
+    assert.equal(zapis.tresc.dataWplywu, '2026-11-06');
+    assert.equal((await api.pobierz('/api/skany')).tresc.skany[0].dataWplywu, '2026-11-06');
+    const katalogMetadanych = path.join(folder, 'archive', 'metadane-skanow');
+    const metryka = path.join(katalogMetadanych, (await readdir(katalogMetadanych))[0]!);
+    assert.equal(JSON.parse(await readFile(metryka, 'utf8')).dataWplywu, '2026-11-06');
+    assert.equal((await stat(metryka)).mode & 0o777, 0o600);
+    assert.equal((await api.zmien(`/api/skany/${id}/wplyw`, { dataWplywu: '2026-11-07' })).kod, 200);
+    assert.equal((await api.pobierz('/api/skany')).tresc.skany[0].dataWplywu, '2026-11-07');
+    const nowy = await skan('kyocera', 'odbierany.png', false);
+    assert.equal((await api.zmien(`/api/skany/${nowy}/wplyw`, { dataWplywu: '2026-11-06' })).kod, 409);
+  });
+  it('nie przenosi zapisanej daty na ponowny skan tej samej nazwy i zachowuje ją w metryce kosza oraz importu', async () => {
+    const { api, pismoId } = await przygotuj(false);
+    const id = await skan();
+    await api.zmien(`/api/skany/${id}/wplyw`, { dataWplywu: '2026-11-06' });
+    await skan();
+    assert.equal((await api.pobierz('/api/skany')).tresc.skany[0].dataWplywu, null);
+    await api.zmien(`/api/skany/${id}/wplyw`, { dataWplywu: '2026-11-06' });
+    const lista = await api.pobierz('/api/skany');
+    await api.zmien(`/api/pisma/${pismoId}/doreczenie`, { dataDoreczenia: lista.tresc.skany[0].dataWplywu });
+    assert.equal((await api.wyslij(`/api/skany/${id}/import`, { pismoId, rola: 'tresc' })).kod, 201);
+    const metryka = (await readdir(path.join(folder, 'archive'))).find(f => f.endsWith('.json'))!;
+    assert.equal(JSON.parse(await readFile(path.join(folder, 'archive', metryka), 'utf8')).dataWplywu, '2026-11-06');
+    await skan();
+    assert.equal((await api.pobierz('/api/skany')).tresc.skany[0].dataWplywu, null);
+    await api.zmien(`/api/skany/${id}/wplyw`, { dataWplywu: '2026-11-08' });
+    const usuniety = await api.wyslij(`/api/skany/${id}/kosz`, {});
+    const metrykaKosza = path.join(folder, 'archive', 'kosz', usuniety.tresc.koszId, 'metryka.json');
+    assert.equal(JSON.parse(await readFile(metrykaKosza, 'utf8')).dataWplywu, '2026-11-08');
+  });
   it('chroni wspólną skrzynkę i wyświetla pliki obu urządzeń bez dowiązań', async () => {
     const user = await zaloguj('inbox-user@example.com');
     assert.equal((await user.pobierz('/api/skany')).kod, 403);

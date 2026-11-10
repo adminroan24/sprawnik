@@ -4,7 +4,7 @@ import { FormularzPisma } from './FormularzPisma';
 import { Komunikat, Pole } from './wspolne';
 import { nazwyRolDokumentow, type Regula, type RolaDokumentu, type SprawaNaLiscie, type WynikRejestracjiPisma, type SzczegolySprawy } from '../typy';
 
-type Skan = { id: string; nazwa: string; zrodlo: string; rozmiarBajtow: number; gotowy: boolean; zaDuzy: boolean };
+type Skan = { id: string; nazwa: string; zrodlo: string; rozmiarBajtow: number; gotowy: boolean; zaDuzy: boolean; dataWplywu: string | null };
 type Rozpoznanie = { tekst: string; sha256: string; proponowanaSprawaId: number | null;
   propozycje: { sprawaId: number; tytul: string; pewnosc: 'wysoka' | 'niska'; powody: string[] }[] };
 
@@ -49,7 +49,18 @@ export function Skany({ otworzSprawe }: { otworzSprawe: (id: number) => void }) 
 
   function wybierz(skan: Skan) {
     wersja.current++; setWybrany(skan); setRozpoznanie(null); setSprawaId('');
-    setBlad(null); setKomunikat(''); setDataWplywu(''); setRegulaDoreczenia(''); setWynikTerminu('');
+    setBlad(null); setKomunikat(''); setDataWplywu(skan.dataWplywu ?? ''); setRegulaDoreczenia(''); setWynikTerminu('');
+  }
+  async function zapiszDate() {
+    if (!wybrany || !data) return;
+    setZajety(true); setBlad(null);
+    try {
+      const zapis = await api.zmien<{ dataWplywu: string }>(`/skany/${wybrany.id}/wplyw`, {
+        dataWplywu: data, sha256: rozpoznanie?.sha256,
+      });
+      setWybrany(s => s ? { ...s, dataWplywu: zapis.dataWplywu } : s);
+      setSkany(lista => lista.map(s => s.id === wybrany.id ? { ...s, dataWplywu: zapis.dataWplywu } : s));
+    } catch (e) { setBlad(e); } finally { setZajety(false); }
   }
   async function rozpoznaj() {
     if (!wybrany) return;
@@ -107,8 +118,8 @@ export function Skany({ otworzSprawe }: { otworzSprawe: (id: number) => void }) 
       <button disabled={zajety} onClick={() => setUsuniecie(null)}>Anuluj usunięcie</button>
     </div>}
     {skany.length === 0 && <p>Brak skanów oczekujących na przypisanie.</p>}
-    {skany.length > 0 && <div className="karta"><table><thead><tr><th>Plik</th><th>Skaner</th><th>Rozmiar</th><th>Wybór</th></tr></thead>
-      <tbody>{skany.map(s => <tr key={s.id}><td>{s.nazwa}</td><td>{s.zrodlo}</td><td>{Math.ceil(s.rozmiarBajtow / 1024)} KB</td>
+    {skany.length > 0 && <div className="karta"><table><thead><tr><th>Plik</th><th>Skaner</th><th>Data wpływu</th><th>Rozmiar</th><th>Wybór</th></tr></thead>
+      <tbody>{skany.map(s => <tr key={s.id}><td>{s.nazwa}</td><td>{s.zrodlo}</td><td>{s.dataWplywu ? s.dataWplywu.split('-').reverse().join('.') : 'Nie zapisano'}</td><td>{Math.ceil(s.rozmiarBajtow / 1024)} KB</td>
         <td><button disabled={zajety || !s.gotowy || s.zaDuzy} onClick={() => wybierz(s)}>
           {s.zaDuzy ? 'Przekracza 10 MiB' : !s.gotowy ? 'Trwa odbiór…' : wybrany?.id === s.id ? 'Wybrany' : 'Wybierz'}</button> <button disabled={zajety || !s.gotowy} onClick={() => { setUsuniecie(s); setPowodUsuniecia(''); setBlad(null); }}>Usuń skan</button></td></tr>)}</tbody></table></div>}
     {wybrany && <div className="karta formularz"><h2>{wybrany.nazwa}</h2>
@@ -116,7 +127,13 @@ export function Skany({ otworzSprawe }: { otworzSprawe: (id: number) => void }) 
       <div className="data-wplywu">
         <Pole etykieta="Data wpływu / doręczenia"><input type="date" value={data} readOnly={Boolean(pismo?.dataDoreczenia)} disabled={zajety}
           onChange={e => setDataWplywu(e.target.value)} /></Pole>
-        {!pismo?.dataDoreczenia && <button disabled={zajety} onClick={() => setDataWplywu(dzisiaj())}>Dzisiaj</button>}
+        {!pismo?.dataDoreczenia && <>
+          <button disabled={zajety} onClick={() => setDataWplywu(dzisiaj())}>Dzisiaj</button>
+          <button disabled={zajety || !data || data === wybrany.dataWplywu} onClick={zapiszDate}>Zapisz</button>
+          {wybrany.dataWplywu && data === wybrany.dataWplywu ?
+            <p role="status">Zapisano datę wpływu: <strong>{data.split('-').reverse().join('.')}</strong>. Data pozostanie przy skanie po odświeżeniu strony.</p> :
+            data && <p role="status">Data została zmieniona. Kliknij Zapisz, aby ją zachować przy skanie.</p>}
+        </>}
         <p>{pismo?.dataDoreczenia ? 'Pismo ma już zapisaną datę doręczenia. Dodanie skanu jej nie zmieni.' :
           'Wpisz rzeczywisty dzień otrzymania pisma. Dzień skanowania nie jest datą wpływu. Data jest wymagana przy dodawaniu treści pisma przychodzącego.'}</p>
       </div>
