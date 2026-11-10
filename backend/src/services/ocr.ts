@@ -33,12 +33,11 @@ function typPliku(plik: Buffer): 'pdf' | 'obraz' {
 }
 
 /** Lokalny OCR. Treść dokumentów nie jest przekazywana do usług zewnętrznych. */
-export async function rozpoznajDokument(dokument: dokumentyDb.Dokument & { nazwaWMagazynie: string }) {
+export async function odczytajTekstPliku(plik: Buffer) {
   if (zajety) throw new BladZadania(409, 'Trwa rozpoznawanie innego dokumentu. Spróbuj ponownie po jego zakończeniu.');
   zajety = true;
   let katalog: string | undefined;
   try {
-    const plik = await odczytajPlik(dokument);
     const typ = typPliku(plik);
     katalog = await mkdtemp(path.join(tmpdir(), 'sprawnik-ocr-'));
     const wejscie = path.join(katalog, typ === 'pdf' ? 'wejscie.pdf' : 'wejscie');
@@ -61,9 +60,14 @@ export async function rozpoznajDokument(dokument: dokumentyDb.Dokument & { nazwa
     const tekst = fragmenty.join('\n\n').trim();
     if (!tekst) throw new BladZadania(422, 'Nie znaleziono czytelnego tekstu. Spróbuj wyraźniejszego skanu.');
     if (tekst.length > 1_000_000) throw new BladZadania(413, 'Wynik OCR jest zbyt obszerny');
-    return await dokumentyDb.zapiszOcr(dokument.id, tekst, obrazy.length);
+    return { tekst, jezyki: 'pol+eng', liczbaStron: obrazy.length };
   } finally {
     if (katalog) await rm(katalog, { recursive: true, force: true });
     zajety = false;
   }
+}
+
+export async function rozpoznajDokument(dokument: dokumentyDb.Dokument & { nazwaWMagazynie: string }) {
+  const wynik = await odczytajTekstPliku(await odczytajPlik(dokument));
+  return dokumentyDb.zapiszOcr(dokument.id, wynik.tekst, wynik.liczbaStron);
 }

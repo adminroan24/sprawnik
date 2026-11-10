@@ -9,6 +9,7 @@ import { terminyRouter } from './routes/terminy.js';
 import { regulyRouter } from './routes/reguly.js';
 import { dokumentyRouter } from './routes/dokumenty.js';
 import { skaneryRouter } from './routes/skanery.js';
+import { skanyRouter } from './routes/skany.js';
 import { errorHandler, notFound } from './middleware/errors.js';
 
 // Komunikaty walidacji w języku interfejsu — domyślne są angielskie i trafiłyby
@@ -26,6 +27,7 @@ export function createApp() {
   app.use('/api', uwierzytelnianieRouter);
   app.use('/api', dokumentyRouter);
   app.use('/api', skaneryRouter);
+  app.use('/api/skany', skanyRouter);
   app.use('/api/sprawy', sprawyRouter);
   app.use('/api/pisma', pismaRouter);
   app.use('/api/terminy', terminyRouter);

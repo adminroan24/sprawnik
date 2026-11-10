@@ -220,3 +220,7 @@ Struktura katalogów odpowiada warstwom z diagramu komponentów:
 System demonstracyjny i inżynierski. Nie odwzorowuje kompletnych procedur administracyjnych —
 reguły wyznaczania terminów są konfigurowalne, a w projekcie przygotowano reprezentatywny zestaw
 przykładów pokazujących działanie mechanizmu.
+
+### Skany wysyłane z panelu urządzenia
+
+Zakładka **Skany** (administrator) odbiera pliki z podkatalogów `epson/` i `kyocera/`, uruchamia lokalny OCR i proponuje własne sprawy po znakach spraw lub wcześniejszych pism. Przypisanie do pisma wymaga potwierdzenia; po imporcie oryginał trafia do osobnego archiwum. [Konfiguracja, zasady dopasowania i ograniczenia](docs/08-skrzynka-skanow-i-dopasowanie.md).

@@ -8,11 +8,11 @@
  */
 
 import { strict as assert } from 'node:assert';
-import { after, before, beforeEach, describe, it } from 'node:test';
+import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
 import * as uzytkownicy from '../db/uzytkownicy.js';
 import { zahaszujHaslo } from '../services/uwierzytelnianie.js';
 import { createHash } from 'node:crypto';
-import { writeFile, unlink, rm, readFile } from 'node:fs/promises';
+import { writeFile, unlink, rm, readFile, mkdtemp, mkdir, utimes, symlink, readdir } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { env } from '../config/env.js';
@@ -574,5 +574,89 @@ describe('skanowanie', () => {
       if (stareWlaczenie === undefined) delete process.env.SCANNER_ENABLED; else process.env.SCANNER_ENABLED = stareWlaczenie;
       if (staraKonfiguracja === undefined) delete process.env.SANE_CONFIG_DIR; else process.env.SANE_CONFIG_DIR = staraKonfiguracja;
     }
+  });
+});
+
+
+describe('skrzynka skanów i dopasowanie spraw', () => {
+  let folder: string;
+  let stareInbox: string | undefined;
+  let stareArchiwum: string | undefined;
+  beforeEach(async () => {
+    folder = await mkdtemp('/tmp/sprawnik-inbox-test-');
+    stareInbox = process.env.SCAN_INBOX_DIR; stareArchiwum = process.env.SCAN_ARCHIVE_DIR;
+    process.env.SCAN_INBOX_DIR = path.join(folder, 'inbox');
+    process.env.SCAN_ARCHIVE_DIR = path.join(folder, 'archive');
+    for (const zrodlo of ['epson', 'kyocera']) await mkdir(path.join(folder, 'inbox', zrodlo), { recursive: true });
+  });
+  afterEach(async () => {
+    if (stareInbox === undefined) delete process.env.SCAN_INBOX_DIR; else process.env.SCAN_INBOX_DIR = stareInbox;
+    if (stareArchiwum === undefined) delete process.env.SCAN_ARCHIVE_DIR; else process.env.SCAN_ARCHIVE_DIR = stareArchiwum;
+    await rm(folder, { recursive: true, force: true });
+  });
+  async function skan(zrodlo = 'epson', nazwa = 'skan.png', stary = true) {
+    const plik = path.join(folder, 'inbox', zrodlo, nazwa);
+    await writeFile(plik, await readFile(new URL('./fixtures/skan-testowy.png', import.meta.url)));
+    if (stary) await utimes(plik, new Date(Date.now() - 20000), new Date(Date.now() - 20000));
+    return Buffer.from(`${zrodlo}/${nazwa}`).toString('base64url');
+  }
+  async function przygotuj() {
+    const api = await zaloguj('inbox@example.com', 'administrator');
+    const s = await api.wyslij('/api/sprawy', { tytul: 'Odczyt sprawy', znakWlasny: 'SPRAWNIK TEST OCR' });
+    const p = await api.wyslij(`/api/sprawy/${s.tresc.sprawa.id}/pisma`, { kierunek: 'przychodzace', rodzaj: 'Pismo', korespondent: 'Test' });
+    return { api, sprawaId: s.tresc.sprawa.id, pismoId: p.tresc.pismo.id };
+  }
+  it('chroni wspólną skrzynkę i wyświetla pliki obu urządzeń bez dowiązań', async () => {
+    const user = await zaloguj('inbox-user@example.com');
+    assert.equal((await user.pobierz('/api/skany')).kod, 403);
+    const { api } = await przygotuj();
+    await skan(); await skan('kyocera');
+    await symlink(path.join(folder, 'inbox/epson/skan.png'), path.join(folder, 'inbox/epson/link.png'));
+    const lista = await api.pobierz('/api/skany');
+    assert.equal(lista.tresc.skany.length, 2);
+    assert.equal((await api.wyslij(`/api/skany/${Buffer.from('epson/link.png').toString('base64url')}/rozpoznaj`, {})).kod, 404);
+    assert.equal((await api.wyslij(`/api/skany/${Buffer.from('epson/../skan.png').toString('base64url')}/rozpoznaj`, {})).kod, 404);
+    await rm(path.join(folder, 'inbox/kyocera'), { recursive: true });
+    await symlink(path.join(folder, 'inbox/epson'), path.join(folder, 'inbox/kyocera'));
+    assert.equal((await api.pobierz('/api/skany')).tresc.skany.length, 1);
+    assert.equal((await api.wyslij(`/api/skany/${Buffer.from('kyocera/skan.png').toString('base64url')}/rozpoznaj`, {})).kod, 404);
+  });
+  it('nie odczytuje pliku podczas odbioru ani pliku przekraczającego limit', async () => {
+    const { api } = await przygotuj();
+    const id = await skan('epson', 'nowy.png', false);
+    assert.equal((await api.wyslij(`/api/skany/${id}/rozpoznaj`, {})).kod, 409);
+    const duzy = path.join(folder, 'inbox/epson/duzy.pdf');
+    await writeFile(duzy, Buffer.alloc(10 * 1024 * 1024 + 1));
+    await utimes(duzy, new Date(0), new Date(0));
+    assert.equal((await api.wyslij(`/api/skany/${Buffer.from('epson/duzy.pdf').toString('base64url')}/rozpoznaj`, {})).kod, 413);
+  });
+  it('proponuje wyłącznie własne sprawy, wymaga wyboru przy niejednoznaczności i zachowuje OCR po imporcie', { skip: !maOcr }, async () => {
+    const { api, sprawaId, pismoId } = await przygotuj();
+    const obcy = await zaloguj('inbox-obcy@example.com');
+    const obca = await obcy.wyslij('/api/sprawy', { tytul: 'Obca', znakWlasny: 'SPRAWNIK TEST OCR' });
+    const obcePismo = await obcy.wyslij(`/api/sprawy/${obca.tresc.sprawa.id}/pisma`, { kierunek: 'przychodzace', rodzaj: 'Prywatne', korespondent: 'Test' });
+    const id = await skan();
+    const rozpoznanie = await api.wyslij(`/api/skany/${id}/rozpoznaj`, {});
+    assert.equal(rozpoznanie.kod, 200);
+    assert.equal(rozpoznanie.tresc.proponowanaSprawaId, sprawaId);
+    assert.equal(rozpoznanie.tresc.propozycje.length, 1);
+    await api.wyslij('/api/sprawy', { tytul: 'Drugie dopasowanie', znakWlasny: 'SPRAWNIK TEST OCR' });
+    assert.equal((await api.wyslij(`/api/skany/${id}/rozpoznaj`, {})).tresc.proponowanaSprawaId, null);
+    assert.equal((await api.wyslij(`/api/skany/${id}/import`, { pismoId: obcePismo.tresc.pismo.id })).kod, 404);
+    assert.equal((await api.wyslij(`/api/skany/${id}/import`, { pismoId, sha256: '0'.repeat(64) })).kod, 409);
+    const wynik = await api.wyslij(`/api/skany/${id}/import`, { pismoId, rola: 'tresc', sha256: rozpoznanie.tresc.sha256 });
+    assert.equal(wynik.kod, 201);
+    assert.equal(wynik.tresc.archiwizowano, true);
+    assert.equal(wynik.tresc.dokument.nazwaWMagazynie, undefined);
+    assert.equal(wynik.tresc.dokument.ocrGotowy, true);
+    assert.match((await api.pobierz(`/api/dokumenty/${wynik.tresc.dokument.id}/ocr`)).tresc.ocr.tekst, /SPRAWNIK/);
+    assert.deepEqual((await api.pobierzPlik(wynik.tresc.dokument.id)).plik, await readFile(new URL('./fixtures/skan-testowy.png', import.meta.url)));
+    assert.equal((await api.pobierz('/api/skany')).tresc.skany.length, 0);
+    assert.equal((await readdir(path.join(folder, 'archive'))).length, 2);
+    assert.equal((await api.wyslij(`/api/skany/${id}/import`, { pismoId })).kod, 404);
+    const kopia = await skan('kyocera', 'kopia.png');
+    const ponownie = await api.wyslij(`/api/skany/${kopia}/import`, { pismoId, rola: 'tresc' });
+    assert.equal(ponownie.tresc.dokument.id, wynik.tresc.dokument.id);
+    assert.equal((await api.pobierz(`/api/sprawy/${sprawaId}/dokumenty`)).tresc.dokumenty.length, 1);
   });
 });

@@ -5,9 +5,10 @@ import { ListaSpraw } from './komponenty/ListaSpraw';
 import { WidokSprawy } from './komponenty/WidokSprawy';
 import { PrzegladTerminow } from './komponenty/PrzegladTerminow';
 import { Reguly } from './komponenty/Reguly';
+import { Skany } from './komponenty/Skany';
 import type { Uzytkownik } from './typy';
 
-type Widok = { nazwa: 'sprawy' } | { nazwa: 'sprawa'; id: number } | { nazwa: 'terminy' } | { nazwa: 'reguly' };
+type Widok = { nazwa: 'sprawy' } | { nazwa: 'sprawa'; id: number } | { nazwa: 'terminy' } | { nazwa: 'reguly' } | { nazwa: 'skany' };
 
 export function App() {
   const [uzytkownik, setUzytkownik] = useState<Uzytkownik | null>(null);
@@ -49,6 +50,9 @@ export function App() {
             Sprawy
           </button>
           {uzytkownik.rola === 'administrator' && <button
+            className={widok.nazwa === 'skany' ? 'aktywny' : ''}
+            onClick={() => setWidok({ nazwa: 'skany' })}>Skany</button>}
+          {uzytkownik.rola === 'administrator' && <button
             className={widok.nazwa === 'reguly' ? 'aktywny' : ''}
             onClick={() => setWidok({ nazwa: 'reguly' })}>Reguły</button>}
         </nav>
@@ -68,6 +72,7 @@ export function App() {
       </header>
 
       <main>
+        {widok.nazwa === 'skany' && uzytkownik.rola === 'administrator' && <Skany otworzSprawe={(id) => setWidok({ nazwa: 'sprawa', id })} />}
         {widok.nazwa === 'reguly' && uzytkownik.rola === 'administrator' && <Reguly />}
         {widok.nazwa === 'terminy' && (
           <PrzegladTerminow otworzSprawe={(id) => setWidok({ nazwa: 'sprawa', id })} />
