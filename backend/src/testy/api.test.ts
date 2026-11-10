@@ -600,10 +600,10 @@ describe('skrzynka skanów i dopasowanie spraw', () => {
     if (stary) await utimes(plik, new Date(Date.now() - 20000), new Date(Date.now() - 20000));
     return Buffer.from(`${zrodlo}/${nazwa}`).toString('base64url');
   }
-  async function przygotuj() {
+  async function przygotuj(zData = true) {
     const api = await zaloguj('inbox@example.com', 'administrator');
     const s = await api.wyslij('/api/sprawy', { tytul: 'Odczyt sprawy', znakWlasny: 'SPRAWNIK TEST OCR' });
-    const p = await api.wyslij(`/api/sprawy/${s.tresc.sprawa.id}/pisma`, { kierunek: 'przychodzace', rodzaj: 'Pismo', korespondent: 'Test' });
+    const p = await api.wyslij(`/api/sprawy/${s.tresc.sprawa.id}/pisma`, { kierunek: 'przychodzace', rodzaj: 'Pismo', korespondent: 'Test', dataDoreczenia: zData ? '2026-11-06' : null });
     return { api, sprawaId: s.tresc.sprawa.id, pismoId: p.tresc.pismo.id };
   }
   it('chroni wspólną skrzynkę i wyświetla pliki obu urządzeń bez dowiązań', async () => {
@@ -620,6 +620,48 @@ describe('skrzynka skanów i dopasowanie spraw', () => {
     await symlink(path.join(folder, 'inbox/epson'), path.join(folder, 'inbox/kyocera'));
     assert.equal((await api.pobierz('/api/skany')).tresc.skany.length, 1);
     assert.equal((await api.wyslij(`/api/skany/${Buffer.from('kyocera/skan.png').toString('base64url')}/rozpoznaj`, {})).kod, 404);
+  });
+  it('przenosi skan do kosza z powodem, zachowuje plik i nie narusza dokumentów', async () => {
+    const { api, pismoId } = await przygotuj();
+    const id = await skan();
+    const zapisany = await api.przeslijPlik(pismoId, 'zachowany.txt', Buffer.from('Zachowaj'));
+    const zwykly = await zaloguj('kosz-user@example.com');
+    assert.equal((await zwykly.wyslij(`/api/skany/${id}/kosz`, { powod: 'Ponowny skan' })).kod, 403);
+    assert.equal((await api.wyslij(`/api/skany/${id}/kosz`, { powod: 'x'.repeat(501) })).kod, 400);
+    const wynik = await api.wyslij(`/api/skany/${id}/kosz`, { powod: 'Ponowny skan' });
+    assert.equal(wynik.kod, 200);
+    const kosz = path.join(folder, 'archive', 'kosz', wynik.tresc.koszId);
+    assert.deepEqual(await readFile(path.join(kosz, 'skan.png')), await readFile(new URL('./fixtures/skan-testowy.png', import.meta.url)));
+    assert.equal(JSON.parse(await readFile(path.join(kosz, 'metryka.json'), 'utf8')).powod, 'Ponowny skan');
+    assert.equal((await api.pobierz('/api/skany')).tresc.skany.length, 0);
+    assert.equal((await api.pobierzPlik(zapisany.tresc.dokument.id)).plik.toString(), 'Zachowaj');
+    assert.equal((await api.wyslij(`/api/skany/${id}/kosz`, {})).kod, 404);
+    await skan();
+    assert.equal((await api.pobierz('/api/skany')).tresc.skany.length, 1);
+    const swiezy = await skan('kyocera', 'odbierany.png', false);
+    assert.equal((await api.wyslij(`/api/skany/${swiezy}/kosz`, {})).kod, 409);
+    await symlink(path.join(folder, 'inbox/epson/skan.png'), path.join(folder, 'inbox/epson/link.png'));
+    const linkId = Buffer.from('epson/link.png').toString('base64url');
+    assert.equal((await api.wyslij(`/api/skany/${linkId}/kosz`, {})).kod, 404);
+  });
+  it('zachowuje wpływ 06.11.2026 i termin według wskazanej reguły mimo późniejszego importu skanu', async () => {
+    const { api, pismoId, sprawaId } = await przygotuj(false);
+    const bezDaty = await skan();
+    assert.equal((await api.wyslij(`/api/skany/${bezDaty}/import`, { pismoId, rola: 'tresc' })).kod, 400);
+    assert.equal((await api.pobierz('/api/skany')).tresc.skany.length, 1);
+    const regula = await api.wyslij('/api/reguly', { nazwa: 'Test wezwania — 7 dni', liczbaDni: 7,
+      sposobLiczenia: 'dni_kalendarzowe', zdarzeniePoczatkowe: 'doreczenie', przesuwajDniWolne: false });
+    const zapis = await api.zmien(`/api/pisma/${pismoId}/doreczenie`, { dataDoreczenia: '2026-11-06', regulaId: regula.tresc.regula.id });
+    assert.equal(zapis.kod, 200);
+    assert.equal(zapis.tresc.termin.dataPoczatkowa, '2026-11-06');
+    assert.equal(zapis.tresc.termin.dataUplywu, '2026-11-13');
+    const id = await skan();
+    assert.equal((await api.wyslij(`/api/skany/${id}/import`, { pismoId, rola: 'tresc' })).kod, 201);
+    assert.equal((await api.zmien(`/api/pisma/${pismoId}/doreczenie`, { dataDoreczenia: '2026-11-10' })).kod, 400);
+    const stan = await api.pobierz(`/api/sprawy/${sprawaId}`);
+    assert.equal(stan.tresc.pisma[0].dataDoreczenia, '2026-11-06');
+    assert.equal(stan.tresc.terminy.length, 1);
+    assert.equal(stan.tresc.terminy[0].dataUplywu, '2026-11-13');
   });
   it('nie odczytuje pliku podczas odbioru ani pliku przekraczającego limit', async () => {
     const { api } = await przygotuj();

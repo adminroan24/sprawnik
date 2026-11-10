@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { wymagaZalogowania, wymagaAdministratora, zalogowany } from '../middleware/uwierzytelnianie.js';
-import { bladBrakZasobu } from '../middleware/errors.js';
+import { bladBrakZasobu, bladWalidacji } from '../middleware/errors.js';
 import { identyfikator, sprawaUzytkownika } from './wspolne.js';
 import { znajdz } from '../db/pisma.js';
-import { listaSkanow, rozpoznajSkan, importujSkan } from '../services/skany.js';
+import { listaSkanow, rozpoznajSkan, importujSkan, usunSkan } from '../services/skany.js';
 
 export const skanyRouter = Router();
 skanyRouter.use(wymagaZalogowania, wymagaAdministratora);
@@ -16,6 +16,11 @@ skanyRouter.post('/:id/rozpoznaj', async (req, res) => {
   res.json(await rozpoznajSkan(idSkanu.parse(req.params.id), zalogowany(req).id));
 });
 
+skanyRouter.post('/:id/kosz', async (req, res) => {
+  const dane = z.object({ powod: z.string().trim().max(500).default('') }).parse(req.body);
+  res.json(await usunSkan(idSkanu.parse(req.params.id), zalogowany(req).id, dane.powod));
+});
+
 skanyRouter.post('/:id/import', async (req, res) => {
   const dane = z.object({ pismoId: identyfikator,
     rola: z.enum(['tresc', 'zalacznik', 'dowod_nadania', 'potwierdzenie_odbioru']).default('tresc'),
@@ -24,6 +29,9 @@ skanyRouter.post('/:id/import', async (req, res) => {
   const pismo = await znajdz(dane.pismoId);
   if (!pismo) throw bladBrakZasobu('Pismo nie istnieje');
   await sprawaUzytkownika(pismo.sprawaId, zalogowany(req).id);
+  if (dane.rola === 'tresc' && pismo.kierunek === 'przychodzace' && !pismo.dataDoreczenia) {
+    throw bladWalidacji('Przed dodaniem treści pisma przychodzącego uzupełnij datę wpływu / doręczenia');
+  }
   res.status(201).json(await importujSkan(idSkanu.parse(req.params.id), zalogowany(req).id,
     dane.pismoId, dane.rola, dane.sha256));
 });

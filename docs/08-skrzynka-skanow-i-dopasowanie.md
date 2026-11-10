@@ -32,3 +32,13 @@ Testy wykorzystują syntetyczny obraz i odizolowaną bazę `_test`. Nie potwierd
 ## Ograniczenia
 
 Odczyt i import uruchamia się przyciskami; nie ma procesu działającego w tle, który sam przypisuje nowe pliki. Automatyczne zakładanie nowych spraw, odczyt dat z OCR i rozpoznawanie pisma odręcznego nie są zaimplementowane. Limity OCR pozostają takie jak dla dokumentów w sprawie: do 20 stron PDF, jeden proces OCR jednocześnie.
+
+## Data wpływu i usuwanie skanu — aktualizacja 10.11.2026
+
+Przy wybranym skanie znajduje się pole **Data wpływu / doręczenia** oraz przycisk **Dzisiaj**, ustawiający lokalny dzień użytkownika. Pole początkowo jest puste: OCR, data pliku i data skanowania go nie wypełniają. Dla roli „Treść pisma” i kierunku przychodzącego data jest wymagana zarówno w interfejsie, jak i przy imporcie przez API.
+
+Przy rejestracji nowego pisma data z sekcji skanu trafia do `dataDoreczenia`. Regułę terminu wybiera się w formularzu pisma. Przy wskazaniu istniejącego pisma bez doręczenia można uzupełnić tę samą datę i regułę od doręczenia bezpośrednio w kroku importu. Najpierw zapisywane są data i ewentualny termin, następnie dokument. Jeśli import pliku się nie powiedzie, zapisane doręczenie pozostaje w piśmie i jest pokazywane w interfejsie; ponowienie nie nadpisuje daty ani nie tworzy ponownie terminu. Dla pisma z zapisaną datą pole jest tylko do odczytu. Brak wybranej reguły oznacza brak automatycznie wyznaczonego terminu — interfejs o tym informuje. Nie wolno traktować daty na treści pisma jako potwierdzenia jego rzeczywistego doręczenia.
+
+Przycisk **Usuń skan** przy pliku otwiera potwierdzenie z opcjonalnym powodem. Potwierdzenie wywołuje `POST /api/skany/:id/kosz` (administrator). Plik znika z poczekalni i trafia do `SCAN_ARCHIVE_DIR/kosz/<uuid>/` wraz z metryką, bez trwałego kasowania. Nie zmienia dokumentów już zapisanych w sprawach. Plik można odzyskać ręcznie z kosza do właściwego katalogu urządzenia; nie ma jeszcze przycisku przywracania w aplikacji. Plik w trakcie odbioru i dowiązania są odrzucane, a import i usunięcie tego samego skanu wzajemnie się blokują. Można usunąć do kosza również plik przekraczający limit importu.
+
+Weryfikacja aktualizacji: 24 testy silnika/dopasowania i 34 API (58 poprawnych, bez pominięć), typecheck obu warstw i build interfejsu. Testy obejmują zachowanie daty 06.11.2026 i terminu według fikcyjnej reguły po późniejszym imporcie, blokadę importu treści bez daty oraz kosz, zachowanie oryginału i istniejących dokumentów. Fikcyjna reguła testowa nie określa terminu żadnego rzeczywistego wezwania.

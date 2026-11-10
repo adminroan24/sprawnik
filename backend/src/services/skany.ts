@@ -88,6 +88,28 @@ export async function rozpoznajSkan(id: string, uzytkownikId: number) {
     proponowanaSprawaId: propozycje.length === 1 && propozycje[0]!.pewnosc === 'wysoka' ? propozycje[0]!.sprawaId : null };
 }
 
+/** Usunięcie z poczekalni zachowuje plik i metrykę w koszu poza udziałem SMB. */
+export async function usunSkan(id: string, uzytkownikId: number, powod: string) {
+  if (aktywneImporty.has(id)) throw new BladZadania(409, 'Ten skan jest już przetwarzany');
+  aktywneImporty.add(id);
+  try {
+    const skan = czesci(id);
+    if (!await zwyklyFolder(skan.zrodlo)) throw bladBrakZasobu('Katalog skanera nie istnieje');
+    const stat = await lstat(skan.sciezka).catch(() => null);
+    if (!stat?.isFile() || stat.isSymbolicLink()) throw bladBrakZasobu('Skan nie istnieje');
+    if (Date.now() - stat.mtimeMs < 10_000) throw new BladZadania(409, 'Poczekaj na zakończenie odbioru skanu');
+    const koszId = randomUUID();
+    const folder = path.join(archiwum(), 'kosz', koszId);
+    await mkdir(folder, { recursive: true, mode: 0o700 });
+    await writeFile(path.join(folder, 'metryka.json'), JSON.stringify({
+      nazwa: skan.nazwa, zrodlo: skan.zrodlo, uzytkownikId, powod,
+      usunieto: new Date().toISOString(), rozmiarBajtow: stat.size,
+    }), { flag: 'wx', mode: 0o600 });
+    await rename(skan.sciezka, path.join(folder, skan.nazwa));
+    return { przeniesionoDoKosza: true, koszId };
+  } finally { aktywneImporty.delete(id); }
+}
+
 export async function importujSkan(id: string, uzytkownikId: number, pismoId: number,
   rola: dokumentyDb.RolaDokumentu, oczekiwanyHash?: string) {
   if (aktywneImporty.has(id)) throw new BladZadania(409, 'Ten skan jest już importowany');

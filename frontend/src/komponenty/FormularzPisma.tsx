@@ -15,12 +15,14 @@ export function FormularzPisma({
   poZapisaniu,
   pisma = [],
   odpowiedzNa = null,
+  wplywSkanu,
 }: {
   sprawaId: number;
   reguly: Regula[];
   poZapisaniu: (wynik: WynikRejestracjiPisma) => void;
   pisma?: Pismo[];
   odpowiedzNa?: Pismo | null;
+  wplywSkanu?: { data: string; wymagana: boolean };
 }) {
   const [kierunek, setKierunek] = useState<KierunekPisma>(odpowiedzNa ?
     (odpowiedzNa.kierunek === 'przychodzace' ? 'wychodzace' : 'przychodzace') : 'przychodzace');
@@ -28,7 +30,8 @@ export function FormularzPisma({
   const [korespondent, setKorespondent] = useState(odpowiedzNa?.korespondent ?? '');
   const [znakPisma, setZnakPisma] = useState('');
   const [dataNadania, setDataNadania] = useState('');
-  const [dataDoreczenia, setDataDoreczenia] = useState('');
+  const [wlasnaDataDoreczenia, setDataDoreczenia] = useState('');
+  const dataDoreczenia = wplywSkanu && kierunek === 'przychodzace' ? wplywSkanu.data : wlasnaDataDoreczenia;
   const [regulaId, setRegulaId] = useState('');
   const [czynnosc, setCzynnosc] = useState('');
   const [blad, setBlad] = useState<unknown>(null);
@@ -40,6 +43,10 @@ export function FormularzPisma({
 
   async function wyslij(zdarzenie: FormEvent) {
     zdarzenie.preventDefault();
+    if (wplywSkanu?.wymagana && kierunek === 'przychodzace' && !dataDoreczenia) {
+      setBlad(new Error('Wpisz datę wpływu / doręczenia w sekcji skanu powyżej.'));
+      return;
+    }
     try {
       const wynik = await api.wyslij<WynikRejestracjiPisma>(`/sprawy/${sprawaId}/pisma`, {
         kierunek,
@@ -87,13 +94,16 @@ export function FormularzPisma({
         <Pole etykieta="Data nadania">
           <input type="date" value={dataNadania} onChange={(e) => setDataNadania(e.target.value)} />
         </Pole>
-        <Pole etykieta="Data doręczenia">
+        {wplywSkanu && kierunek === 'przychodzace' ? <p className="wskazowka">
+          Data wpływu / doręczenia: <strong>{dataDoreczenia ? dataDoreczenia.split('-').reverse().join('.') : 'uzupełnij w sekcji skanu powyżej'}</strong>.
+          Ta data zostanie zapisana w piśmie i użyta przez regułę liczoną od doręczenia.
+        </p> : <Pole etykieta="Data doręczenia">
           <input
             type="date"
             value={dataDoreczenia}
             onChange={(e) => setDataDoreczenia(e.target.value)}
           />
-        </Pole>
+        </Pole>}
       </div>
 
       <div className="siatka">
@@ -137,7 +147,7 @@ export function FormularzPisma({
         </p>
       )}
 
-      <button type="submit">Zapisz pismo</button>
+      <button type="submit" disabled={Boolean(wplywSkanu?.wymagana && kierunek === 'przychodzace' && !dataDoreczenia)}>Zapisz pismo</button>
     </form>
   );
 }
